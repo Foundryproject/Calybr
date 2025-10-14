@@ -1,0 +1,23 @@
+# Node/Expo
+node_modules/
+.expo/
+.expo-shared/
+dist/
+build/
+.DS_Store
+
+# Native artifacts (prebuild/dev-client)
+android/.gradle/
+android/app/build/
+android/build/
+ios/Pods/
+ios/build/
+*.keystore
+*.jks
+
+# Env & secrets
+.env*
+!.env.example
+
+# EAS (remove this line if you want to commit eas.json)
+# eas.json
