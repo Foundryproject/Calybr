@@ -6,10 +6,9 @@ import { makeRedirectUri } from 'expo-auth-session';
 
 WebBrowser.maybeCompleteAuthSession();
 
-// Helper to check if Supabase is available and return typed client
 const getSupabase = (): SupabaseClient<Database> => {
   if (!isSupabaseConfigured() || !supabase) {
-    throw new Error('Supabase is not configured. Please add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to your .env file.');
+    throw new Error('Supabase not configured. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to .env');
   }
   return supabase;
 };
@@ -33,130 +32,68 @@ export interface OnboardingData {
   country?: string;
 }
 
-/**
- * Sign up with email and password
- * This now handles RLS policy errors gracefully
- */
 export const signUpWithEmail = async (data: SignUpData) => {
-  try {
-    const client = getSupabase();
-    
-    // 1. Create auth user with metadata (Supabase may auto-create profile via trigger)
-    const { data: authData, error: authError } = await client.auth.signUp({
-      email: data.email,
-      password: data.password,
-      options: {
-        data: {
-          first_name: data.firstName,
-          last_name: data.lastName,
-        },
+  const client = getSupabase();
+  
+  const { data: authData, error: authError } = await client.auth.signUp({
+    email: data.email,
+    password: data.password,
+    options: {
+      data: {
+        first_name: data.firstName,
+        last_name: data.lastName,
       },
-    });
+    },
+  });
 
-    if (authError) throw authError;
-    if (!authData.user) throw new Error('No user returned from sign up');
+  if (authError) throw authError;
+  if (!authData.user) throw new Error('No user returned from sign up');
 
-    // 2. Try to create profile manually (if trigger doesn't exist or RLS blocks it)
-    // This may fail due to RLS policy, but we handle it gracefully
-    try {
-      const { error: profileError } = await client
-        .from('profiles')
-        .insert({
-          id: authData.user.id,
-          email: data.email,
-          first_name: data.firstName,
-          last_name: data.lastName,
-        });
+  try {
+    const { error: profileError } = await client
+      .from('profiles')
+      .insert({
+        id: authData.user.id,
+        email: data.email,
+        first_name: data.firstName,
+        last_name: data.lastName,
+      });
 
-      // Log any errors but don't fail signup
-      if (profileError) {
-        // Check if it's a duplicate key error (profile already exists from trigger)
-        if (profileError.code === '23505' || profileError.message?.includes('duplicate')) {
-          console.log('Profile already exists (created by database trigger)');
-        } else if (profileError.code === '42501') {
-          // RLS policy error - this is expected if policies aren't set up yet
-          console.warn('RLS policy blocks manual profile creation. Profile may be created by trigger or needs policy fix.');
-        } else {
-          console.warn('Profile creation warning:', profileError);
-        }
-      } else {
-        console.log('Profile created successfully');
-      }
-    } catch (profileError) {
-      // Non-critical error - user was created successfully
-      console.warn('Could not create profile manually, but user account was created:', profileError);
+    if (profileError && !['23505', '42501'].some(code => profileError.code === code || profileError.message?.includes('duplicate'))) {
+      console.warn('Profile creation warning:', profileError);
     }
-
-    return { user: authData.user, session: authData.session };
-  } catch (error) {
-    console.error('Sign up error:', error);
-    throw error;
+  } catch (profileError) {
+    console.warn('Could not create profile manually:', profileError);
   }
+
+  return { user: authData.user, session: authData.session };
 };
 
-/**
- * Sign in with email and password
- */
 export const signInWithEmail = async (email: string, password: string) => {
-  try {
-    const client = getSupabase();
-    const { data, error } = await client.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Sign in error:', error);
-    throw error;
-  }
+  const client = getSupabase();
+  const { data, error } = await client.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  return data;
 };
 
-/**
- * Sign in with Google OAuth
- */
 export const signInWithGoogle = async () => {
-  try {
-    const client = getSupabase();
-    
-    // Use skipBrowserRedirect to get the URL without automatic redirect
-    const { data, error } = await client.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        skipBrowserRedirect: true,
-      },
-    });
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Google sign in error:', error);
-    throw error;
-  }
+  const client = getSupabase();
+  const { data, error } = await client.auth.signInWithOAuth({
+    provider: 'google',
+    options: { skipBrowserRedirect: true },
+  });
+  if (error) throw error;
+  return data;
 };
 
-/**
- * Sign out
- */
 export const signOut = async () => {
-  try {
-    const client = getSupabase();
-    const { error } = await client.auth.signOut();
-    if (error) throw error;
-  } catch (error) {
-    console.error('Sign out error:', error);
-    throw error;
-  }
+  const { error } = await getSupabase().auth.signOut();
+  if (error) throw error;
 };
 
-/**
- * Get current session
- */
 export const getCurrentSession = async () => {
   try {
-    const client = getSupabase();
-    const { data: { session }, error } = await client.auth.getSession();
+    const { data: { session }, error } = await getSupabase().auth.getSession();
     if (error) throw error;
     return session;
   } catch (error) {
@@ -165,9 +102,6 @@ export const getCurrentSession = async () => {
   }
 };
 
-/**
- * Get current user profile
- */
 export const getCurrentUserProfile = async () => {
   try {
     const client = getSupabase();
@@ -188,43 +122,30 @@ export const getCurrentUserProfile = async () => {
   }
 };
 
-/**
- * Complete onboarding - update profile with additional data
- */
 export const completeOnboarding = async (userId: string, data: OnboardingData) => {
-  try {
-    const client = getSupabase();
-    const { error } = await client
-      .from('profiles')
-      .update({
-        phone_number: data.phoneNumber,
-        age: data.age,
-        gender: data.gender,
-        car_make: data.carMake,
-        car_model: data.carModel,
-        car_year: data.carYear,
-        license_plate: data.licensePlate,
-        city: data.city,
-        country: data.country || 'United States',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', userId);
+  const { error } = await getSupabase()
+    .from('profiles')
+    .update({
+      phone_number: data.phoneNumber,
+      age: data.age,
+      gender: data.gender,
+      car_make: data.carMake,
+      car_model: data.carModel,
+      car_year: data.carYear,
+      license_plate: data.licensePlate,
+      city: data.city,
+      country: data.country || 'United States',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', userId);
 
-    if (error) throw error;
-    return true;
-  } catch (error) {
-    console.error('Complete onboarding error:', error);
-    throw error;
-  }
+  if (error) throw error;
+  return true;
 };
 
-/**
- * Check if user has completed onboarding
- */
 export const hasCompletedOnboarding = async (userId: string) => {
   try {
-    const client = getSupabase();
-    const { data, error } = await client
+    const { data, error } = await getSupabase()
       .from('profiles')
       .select('car_make, car_model')
       .eq('id', userId)
@@ -238,10 +159,5 @@ export const hasCompletedOnboarding = async (userId: string) => {
   }
 };
 
-/**
- * Listen to auth state changes
- */
-export const onAuthStateChange = (callback: (event: string, session: any) => void) => {
-  const client = getSupabase();
-  return client.auth.onAuthStateChange(callback);
-};
+export const onAuthStateChange = (callback: (event: string, session: any) => void) =>
+  getSupabase().auth.onAuthStateChange(callback);

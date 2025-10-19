@@ -45,47 +45,40 @@ export default function App() {
   const navigationRef = useRef<any>(null);
 
   useEffect(() => {
-    // Check if Supabase is configured
     if (!isSupabaseConfigured() || !supabase) {
-      // Skip Supabase initialization if not configured
       setIsInitializing(false);
       return;
     }
 
-    // Check initial session
+    const handleAuthUser = async (user: any) => {
+      const authProvider = user.app_metadata?.provider;
+      login({
+        id: user.id,
+        email: user.email || "",
+        name: user.user_metadata?.first_name || user.email?.split("@")[0] || "User",
+        authProvider: (authProvider === "google" || authProvider === "email") ? authProvider : "email",
+      });
+
+      const onboardingComplete = await checkOnboarding(user.id);
+      if (onboardingComplete) {
+        completeOnboarding({
+          firstName: user.user_metadata?.first_name || "",
+          lastName: user.user_metadata?.last_name || "",
+          phoneNumber: "",
+          age: "",
+          gender: "",
+          carMake: "",
+          carModel: "",
+          carYear: "",
+          licensePlate: "",
+        });
+      }
+    };
+
     const initializeAuth = async () => {
       try {
-        if (!supabase) return;
-        
         const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user) {
-          const authProvider = session.user.app_metadata?.provider;
-          
-          // User is authenticated
-          login({
-            id: session.user.id,
-            email: session.user.email || "",
-            name: session.user.user_metadata?.first_name || session.user.email?.split("@")[0] || "User",
-            authProvider: (authProvider === "google" || authProvider === "email") ? authProvider : "email",
-          });
-
-          // Check if onboarding is completed
-          const onboardingComplete = await checkOnboarding(session.user.id);
-          if (onboardingComplete) {
-            completeOnboarding({
-              firstName: session.user.user_metadata?.first_name || "",
-              lastName: session.user.user_metadata?.last_name || "",
-              phoneNumber: "",
-              age: "",
-              gender: "",
-              carMake: "",
-              carModel: "",
-              carYear: "",
-              licensePlate: "",
-            });
-          }
-        }
+        if (session?.user) await handleAuthUser(session.user);
       } catch (error) {
         console.error("Error initializing auth:", error);
       } finally {
@@ -95,85 +88,39 @@ export default function App() {
 
     initializeAuth();
 
-    // Listen for auth changes (only if supabase is configured)
-    if (!supabase) return;
-    
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === "SIGNED_IN" && session?.user) {
-          const authProvider = session.user.app_metadata?.provider;
-          
-          login({
-            id: session.user.id,
-            email: session.user.email || "",
-            name: session.user.user_metadata?.first_name || session.user.email?.split("@")[0] || "User",
-            authProvider: (authProvider === "google" || authProvider === "email") ? authProvider : "email",
-          });
-
-          // Check if onboarding is completed
-          const onboardingComplete = await checkOnboarding(session.user.id);
-          if (onboardingComplete) {
-            completeOnboarding({
-              firstName: session.user.user_metadata?.first_name || "",
-              lastName: session.user.user_metadata?.last_name || "",
-              phoneNumber: "",
-              age: "",
-              gender: "",
-              carMake: "",
-              carModel: "",
-              carYear: "",
-              licensePlate: "",
-            });
-          }
+          await handleAuthUser(session.user);
         } else if (event === "SIGNED_OUT") {
           logout();
         }
       }
     );
 
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
-  // Initialize trip tracker when auto-tracking is enabled
   useEffect(() => {
     if (isAuthenticated && hasCompletedOnboarding && isAutoTrackingEnabled) {
-      const initTracker = async () => {
-        const success = await tripTracker.initialize();
-        if (success) {
-          console.log('✅ Trip tracker initialized');
-        }
-      };
-      initTracker();
+      tripTracker.initialize().then(success => success && console.log('✅ Trip tracker initialized'));
     } else {
-      // Shutdown tracker if disabled
       tripTracker.shutdown();
     }
   }, [isAuthenticated, hasCompletedOnboarding, isAutoTrackingEnabled]);
 
-  // Subscribe to trip tracker events for navigation
   useEffect(() => {
     if (!isAuthenticated || !hasCompletedOnboarding) return;
 
-    const unsubscribe = tripTracker.subscribe((state) => {
+    return tripTracker.subscribe((state) => {
       if (!navigationRef.current) return;
 
       if (state.status === 'recording' && state.currentTrip) {
-        // Navigate to active trip screen
-        navigationRef.current.navigate('TripsTab', {
-          screen: 'ActiveTrip',
-        });
+        navigationRef.current.navigate('TripsTab', { screen: 'ActiveTrip' });
       } else if (state.status === 'ending' && state.currentTrip) {
-        // Navigate to trip summary
-        navigationRef.current.navigate('TripsTab', {
-          screen: 'TripSummary',
-          params: { trip: state.currentTrip },
-        });
+        navigationRef.current.navigate('TripsTab', { screen: 'TripSummary', params: { trip: state.currentTrip } });
       }
     });
-
-    return () => unsubscribe();
   }, [isAuthenticated, hasCompletedOnboarding]);
 
   if (isInitializing) {
@@ -184,22 +131,12 @@ export default function App() {
     );
   }
 
-  const renderScreen = () => {
-    if (!isAuthenticated) {
-      return <SignUpScreen />;
-    }
-    if (!hasCompletedOnboarding) {
-      return <OnboardingScreen />;
-    }
-    return <MainNavigator />;
-  };
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <StatusBar style="dark" />
         <NavigationContainer ref={navigationRef}>
-          {renderScreen()}
+          {!isAuthenticated ? <SignUpScreen /> : !hasCompletedOnboarding ? <OnboardingScreen /> : <MainNavigator />}
         </NavigationContainer>
       </SafeAreaProvider>
     </GestureHandlerRootView>
