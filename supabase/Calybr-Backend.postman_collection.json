@@ -1,0 +1,328 @@
+{
+  "info": {
+    "name": "Calybr Backend API",
+    "description": "API collection for Calybr driving safety backend (Supabase)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{ANON_KEY}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "SUPABASE_URL",
+      "value": "http://localhost:54321",
+      "type": "string"
+    },
+    {
+      "key": "ANON_KEY",
+      "value": "your-anon-key-here",
+      "type": "string"
+    },
+    {
+      "key": "TEST_USER_ID",
+      "value": "550e8400-e29b-41d4-a716-446655440000",
+      "type": "string"
+    },
+    {
+      "key": "TEST_DEVICE_ID",
+      "value": "660e8400-e29b-41d4-a716-446655440000",
+      "type": "string"
+    },
+    {
+      "key": "TEST_TRIP_ID",
+      "value": "770e8400-e29b-41d4-a716-446655440000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Edge Functions",
+      "item": [
+        {
+          "name": "Ingest Telemetry - Single Sample",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{TEST_USER_ID}}\",\n  \"deviceId\": \"{{TEST_DEVICE_ID}}\",\n  \"samples\": [\n    {\n      \"ts\": \"2025-10-19T14:30:00.000Z\",\n      \"lat\": 39.9526,\n      \"lon\": -75.1652,\n      \"speed_mps\": 12.4,\n      \"heading_deg\": 108,\n      \"hdop\": 0.7,\n      \"accel\": {\n        \"ax\": -0.2,\n        \"ay\": 0.05,\n        \"az\": 9.65\n      },\n      \"screen_on\": false\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{SUPABASE_URL}}/functions/v1/ingest-telemetry",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["functions", "v1", "ingest-telemetry"]
+            }
+          }
+        },
+        {
+          "name": "Ingest Telemetry - Batch (Realistic)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{TEST_USER_ID}}\",\n  \"deviceId\": \"{{TEST_DEVICE_ID}}\",\n  \"samples\": [\n    {\n      \"ts\": \"2025-10-19T14:30:00.000Z\",\n      \"lat\": 39.9526,\n      \"lon\": -75.1652,\n      \"speed_mps\": 10.0,\n      \"heading_deg\": 90,\n      \"hdop\": 0.8,\n      \"accel\": {\"ax\": 0.1, \"ay\": 0.0, \"az\": 9.8},\n      \"screen_on\": false\n    },\n    {\n      \"ts\": \"2025-10-19T14:30:01.000Z\",\n      \"lat\": 39.9527,\n      \"lon\": -75.1650,\n      \"speed_mps\": 11.2,\n      \"heading_deg\": 92,\n      \"hdop\": 0.7,\n      \"accel\": {\"ax\": 0.3, \"ay\": -0.1, \"az\": 9.75},\n      \"screen_on\": false\n    },\n    {\n      \"ts\": \"2025-10-19T14:30:02.000Z\",\n      \"lat\": 39.9528,\n      \"lon\": -75.1648,\n      \"speed_mps\": 12.8,\n      \"heading_deg\": 94,\n      \"hdop\": 0.6,\n      \"accel\": {\"ax\": 0.5, \"ay\": 0.0, \"az\": 9.8},\n      \"screen_on\": false\n    },\n    {\n      \"ts\": \"2025-10-19T14:30:03.000Z\",\n      \"lat\": 39.9529,\n      \"lon\": -75.1646,\n      \"speed_mps\": 14.0,\n      \"heading_deg\": 95,\n      \"hdop\": 0.7,\n      \"accel\": {\"ax\": 0.2, \"ay\": 0.1, \"az\": 9.82},\n      \"screen_on\": false\n    },\n    {\n      \"ts\": \"2025-10-19T14:30:04.000Z\",\n      \"lat\": 39.9530,\n      \"lon\": -75.1644,\n      \"speed_mps\": 15.0,\n      \"heading_deg\": 96,\n      \"hdop\": 0.8,\n      \"accel\": {\"ax\": -0.1, \"ay\": 0.0, \"az\": 9.79},\n      \"screen_on\": false\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{SUPABASE_URL}}/functions/v1/ingest-telemetry",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["functions", "v1", "ingest-telemetry"]
+            }
+          }
+        },
+        {
+          "name": "Finalize Trips (Manual Trigger)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{SUPABASE_URL}}/functions/v1/trips-finalize",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["functions", "v1", "trips-finalize"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "REST API Queries",
+      "item": [
+        {
+          "name": "Get User Trips",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              }
+            ],
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/trip?user_id=eq.{{TEST_USER_ID}}&status=eq.closed&select=*,trip_score(*)&order=started_at.desc&limit=10",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "trip"],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "eq.{{TEST_USER_ID}}"
+                },
+                {
+                  "key": "status",
+                  "value": "eq.closed"
+                },
+                {
+                  "key": "select",
+                  "value": "*,trip_score(*)"
+                },
+                {
+                  "key": "order",
+                  "value": "started_at.desc"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Trip Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              }
+            ],
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/trip?id=eq.{{TEST_TRIP_ID}}&select=*,trip_score(*),trip_features(*),event(*)",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "trip"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "eq.{{TEST_TRIP_ID}}"
+                },
+                {
+                  "key": "select",
+                  "value": "*,trip_score(*),trip_features(*),event(*)"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Daily Scores (Last 30 Days)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              }
+            ],
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/driver_score_daily?user_id=eq.{{TEST_USER_ID}}&order=day.desc&limit=30",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "driver_score_daily"],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "eq.{{TEST_USER_ID}}"
+                },
+                {
+                  "key": "order",
+                  "value": "day.desc"
+                },
+                {
+                  "key": "limit",
+                  "value": "30"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Trip Events",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              }
+            ],
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/event?trip_id=eq.{{TEST_TRIP_ID}}&order=ts_start.asc",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "event"],
+              "query": [
+                {
+                  "key": "trip_id",
+                  "value": "eq.{{TEST_TRIP_ID}}"
+                },
+                {
+                  "key": "order",
+                  "value": "ts_start.asc"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Current Score Weights",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              }
+            ],
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/score_weights?order=created_at.desc&limit=1",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "score_weights"],
+              "query": [
+                {
+                  "key": "order",
+                  "value": "created_at.desc"
+                },
+                {
+                  "key": "limit",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get All Open Trips",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              }
+            ],
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/trip?status=eq.open&select=*",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "trip"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "eq.open"
+                },
+                {
+                  "key": "select",
+                  "value": "*"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "RPC Calls",
+      "item": [
+        {
+          "name": "Get Trips to Finalize",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "apikey",
+                "value": "{{ANON_KEY}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{SUPABASE_URL}}/rest/v1/rpc/get_trips_to_finalize",
+              "host": ["{{SUPABASE_URL}}"],
+              "path": ["rest", "v1", "rpc", "get_trips_to_finalize"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+

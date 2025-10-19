@@ -1,0 +1,64 @@
+# Supabase Configuration File
+# See: https://supabase.com/docs/guides/cli/config
+
+[project]
+# A string used to distinguish different Supabase projects on the same host
+name = "calybr-backend"
+
+[api]
+# Port for PostgREST API
+port = 54321
+# Schemas exposed through REST API
+schemas = ["public", "storage", "graphql_public"]
+# Extra schemas to add to the search_path
+extra_search_path = ["public", "extensions"]
+# Max rows returned per request
+max_rows = 1000
+
+[db]
+# Port for PostgreSQL database
+port = 54322
+# Major version of PostgreSQL
+major_version = 15
+
+[studio]
+# Port for Supabase Studio
+port = 54323
+
+[inbucket]
+# Port for Inbucket (email testing)
+port = 54324
+
+[storage]
+# Port for Storage API
+port = 54325
+# File size limit in bytes (50 MB)
+file_size_limit = 52428800
+
+[auth]
+# Port for Auth API
+port = 54326
+# Enable signup
+enable_signup = true
+# Auth session expiry (in seconds)
+site_url = "http://localhost:3000"
+# Additional redirect URLs
+additional_redirect_urls = []
+
+[auth.email]
+# Enable email confirmations
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+[edge_functions]
+# Enable Edge Functions
+enabled = true
+
+# Edge Runtime logs
+[analytics]
+enabled = false
+
+[db.pooler]
+enabled = false
+
