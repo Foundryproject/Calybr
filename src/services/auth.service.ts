@@ -98,81 +98,119 @@ export const signUpWithEmail = async (data: SignUpData) => {
  * Sign in with email and password
  */
 export const signInWithEmail = async (email: string, password: string) => {
-  try {
-    const client = getSupabase();
-    const { data, error } = await client.auth.signInWithPassword({
-      email,
-      password,
-    });
+  const client = getSupabase();
+  const { data, error } = await client.auth.signInWithPassword({
+    email,
+    password,
+  });
 
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Sign in error:', error);
-    throw error;
-  }
-};
-
-/**
- * Sign in with Google OAuth
- */
-export const signInWithGoogle = async () => {
-  try {
-    const client = getSupabase();
-    
-    // Use skipBrowserRedirect to get the URL without automatic redirect
-    const { data, error } = await client.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        skipBrowserRedirect: true,
-      },
-    });
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Google sign in error:', error);
-    throw error;
-  }
+  if (error) throw error;
+  return { user: data.user, session: data.session };
 };
 
 /**
  * Sign out
  */
 export const signOut = async () => {
-  try {
-    const client = getSupabase();
-    const { error } = await client.auth.signOut();
-    if (error) throw error;
-  } catch (error) {
-    console.error('Sign out error:', error);
-    throw error;
-  }
+  const client = getSupabase();
+  const { error } = await client.auth.signOut();
+  if (error) throw error;
 };
 
 /**
  * Get current session
  */
 export const getCurrentSession = async () => {
+  const client = getSupabase();
+  const { data, error } = await client.auth.getSession();
+  if (error) throw error;
+  return data.session;
+};
+
+/**
+ * Get current user
+ */
+export const getCurrentUser = async () => {
+  const client = getSupabase();
+  const { data, error } = await client.auth.getUser();
+  if (error) throw error;
+  return data.user;
+};
+
+/**
+ * Reset password
+ */
+export const resetPassword = async (email: string) => {
+  const client = getSupabase();
+  const redirectTo = makeRedirectUri({ path: 'reset-password' });
+  
+  const { data, error } = await client.auth.resetPasswordForEmail(email, {
+    redirectTo,
+  });
+  
+  if (error) throw error;
+  return data;
+};
+
+/**
+ * Update user password
+ */
+export const updatePassword = async (newPassword: string) => {
+  const client = getSupabase();
+  const { data, error } = await client.auth.updateUser({
+    password: newPassword,
+  });
+  
+  if (error) throw error;
+  return data;
+};
+
+/**
+ * Complete onboarding by updating user profile
+ */
+export const completeOnboarding = async (onboardingData: OnboardingData) => {
   try {
     const client = getSupabase();
-    const { data: { session }, error } = await client.auth.getSession();
+    const { data: { user } } = await client.auth.getUser();
+    
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    const { error } = await client
+      .from('profiles')
+      .update({
+        phone_number: onboardingData.phoneNumber,
+        age: onboardingData.age,
+        gender: onboardingData.gender,
+        car_make: onboardingData.carMake,
+        car_model: onboardingData.carModel,
+        car_year: onboardingData.carYear,
+        license_plate: onboardingData.licensePlate,
+        city: onboardingData.city,
+        country: onboardingData.country,
+        onboarding_completed: true,
+      })
+      .eq('id', user.id);
+
     if (error) throw error;
-    return session;
   } catch (error) {
-    console.error('Get session error:', error);
-    return null;
+    console.error('Onboarding error:', error);
+    throw error;
   }
 };
 
 /**
- * Get current user profile
+ * Get user profile
  */
-export const getCurrentUserProfile = async () => {
+export const getUserProfile = async () => {
   try {
     const client = getSupabase();
     const { data: { user } } = await client.auth.getUser();
-    if (!user) return null;
+    
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
 
     const { data, error } = await client
       .from('profiles')
@@ -184,64 +222,57 @@ export const getCurrentUserProfile = async () => {
     return data;
   } catch (error) {
     console.error('Get profile error:', error);
-    return null;
-  }
-};
-
-/**
- * Complete onboarding - update profile with additional data
- */
-export const completeOnboarding = async (userId: string, data: OnboardingData) => {
-  try {
-    const client = getSupabase();
-    const { error } = await client
-      .from('profiles')
-      .update({
-        phone_number: data.phoneNumber,
-        age: data.age,
-        gender: data.gender,
-        car_make: data.carMake,
-        car_model: data.carModel,
-        car_year: data.carYear,
-        license_plate: data.licensePlate,
-        city: data.city,
-        country: data.country || 'United States',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', userId);
-
-    if (error) throw error;
-    return true;
-  } catch (error) {
-    console.error('Complete onboarding error:', error);
     throw error;
   }
 };
 
 /**
- * Check if user has completed onboarding
+ * Update user profile
  */
-export const hasCompletedOnboarding = async (userId: string) => {
+export const updateUserProfile = async (updates: Partial<OnboardingData & { firstName?: string; lastName?: string }>) => {
   try {
     const client = getSupabase();
-    const { data, error } = await client
+    const { data: { user } } = await client.auth.getUser();
+    
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    // Map updates to database columns
+    const profileUpdates: any = {};
+    if (updates.firstName !== undefined) profileUpdates.first_name = updates.firstName;
+    if (updates.lastName !== undefined) profileUpdates.last_name = updates.lastName;
+    if (updates.phoneNumber !== undefined) profileUpdates.phone_number = updates.phoneNumber;
+    if (updates.age !== undefined) profileUpdates.age = updates.age;
+    if (updates.gender !== undefined) profileUpdates.gender = updates.gender;
+    if (updates.carMake !== undefined) profileUpdates.car_make = updates.carMake;
+    if (updates.carModel !== undefined) profileUpdates.car_model = updates.carModel;
+    if (updates.carYear !== undefined) profileUpdates.car_year = updates.carYear;
+    if (updates.licensePlate !== undefined) profileUpdates.license_plate = updates.licensePlate;
+    if (updates.city !== undefined) profileUpdates.city = updates.city;
+    if (updates.country !== undefined) profileUpdates.country = updates.country;
+
+    const { error } = await client
       .from('profiles')
-      .select('car_make, car_model')
-      .eq('id', userId)
-      .single();
+      .update(profileUpdates)
+      .eq('id', user.id);
 
     if (error) throw error;
-    return !!(data?.car_make && data?.car_model);
   } catch (error) {
-    console.error('Check onboarding error:', error);
-    return false;
+    console.error('Update profile error:', error);
+    throw error;
   }
 };
 
 /**
- * Listen to auth state changes
+ * Check if onboarding is completed
  */
-export const onAuthStateChange = (callback: (event: string, session: any) => void) => {
-  const client = getSupabase();
-  return client.auth.onAuthStateChange(callback);
+export const isOnboardingCompleted = async (): Promise<boolean> => {
+  try {
+    const profile = await getUserProfile();
+    return profile?.onboarding_completed ?? false;
+  } catch (error) {
+    console.error('Check onboarding error:', error);
+    return false;
+  }
 };
