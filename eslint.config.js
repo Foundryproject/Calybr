@@ -1,16 +1,12 @@
-const expo = require('eslint-config-expo');
+const { FlatCompat } = require("@eslint/eslintrc");
+
+const compat = new FlatCompat({
+  baseDirectory: __dirname,
+});
 
 module.exports = [
-  ...expo,
+  ...compat.extends("eslint-config-expo"),
   {
-    ignores: [
-      'node_modules/**',
-      '.expo/**',
-      'android/**',
-      'ios/**',
-      'dist/**',
-      'build/**',
-    ],
+    ignores: ["node_modules/**", ".expo/**", "android/**", "ios/**", "dist/**", "build/**", "eslint.config.js"],
   },
 ];
-
