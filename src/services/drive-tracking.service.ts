@@ -1,6 +1,6 @@
 /**
  * Drive Mode Tracking Service
- * 
+ *
  * Real-time GPS tracking with driving behavior analysis
  * - Tracks speed, acceleration, braking, phone usage
  * - Calculates DriveScore in real-time
@@ -8,18 +8,19 @@
  * - Provides route and ETA via Google Directions API
  */
 
-import * as Location from 'expo-location';
-import { Platform } from 'react-native';
+import * as Location from "expo-location";
+import { Platform } from "react-native";
+import { backgroundLocationService, BackgroundTrackingOptions } from "./background-location.service";
 
 export interface DrivingEvent {
   id: string;
-  type: 'hard_brake' | 'hard_acceleration' | 'speeding' | 'phone_use' | 'sharp_turn';
+  type: "hard_brake" | "hard_acceleration" | "speeding" | "phone_use" | "sharp_turn";
   timestamp: number;
   location: {
     latitude: number;
     longitude: number;
   };
-  severity: 'low' | 'medium' | 'high';
+  severity: "low" | "medium" | "high";
   value?: number; // Speed, G-force, etc.
   description: string;
 }
@@ -32,13 +33,13 @@ export interface DriveMetrics {
   maxSpeed: number;
   score: number; // 0-100
   events: DrivingEvent[];
-  route: Array<{
+  route: {
     latitude: number;
     longitude: number;
     timestamp: number;
     speed: number;
     heading: number;
-  }>;
+  }[];
 }
 
 export interface DriveState {
@@ -59,10 +60,12 @@ export interface DriveState {
 
 class DriveTrackingService {
   private locationSubscription: Location.LocationSubscription | null = null;
+  private backgroundUnsubscribe: (() => void) | null = null;
   private previousLocation: Location.LocationObject | null = null;
   private previousSpeed: number = 0;
   private startTime: number = 0;
-  
+  private useBackgroundTracking: boolean = false;
+
   private state: DriveState = {
     isTracking: false,
     metrics: {
@@ -80,7 +83,7 @@ class DriveTrackingService {
     eta: null,
   };
 
-  private listeners: Array<(state: DriveState) => void> = [];
+  private listeners: ((state: DriveState) => void)[] = [];
 
   // Thresholds for event detection
   private readonly HARD_BRAKE_THRESHOLD = -0.4; // G-force (negative = braking)
@@ -90,20 +93,30 @@ class DriveTrackingService {
 
   /**
    * Start tracking drive mode
+   * @param destination - Optional destination for ETA calculation
+   * @param enableBackground - Enable background tracking (default: true)
+   * @param backgroundOptions - Options for background tracking (notification style, accuracy, etc.)
    */
-  async startTracking(destination?: { latitude: number; longitude: number; address?: string }): Promise<boolean> {
+  async startTracking(
+    destination?: { latitude: number; longitude: number; address?: string },
+    enableBackground: boolean = true,
+    backgroundOptions?: BackgroundTrackingOptions,
+  ): Promise<boolean> {
     try {
-      // Request permissions
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        console.warn('Location permission not granted');
+      // Request permissions (including background if enabled)
+      const permissions = await backgroundLocationService.requestPermissions();
+
+      if (!permissions.foreground) {
+        console.warn("Foreground location permission not granted");
         return false;
       }
 
-      // Request background permission for continuous tracking
-      if (Platform.OS === 'ios') {
-        await Location.requestBackgroundPermissionsAsync();
+      if (enableBackground && !permissions.background) {
+        console.warn("Background location permission not granted, falling back to foreground only");
+        enableBackground = false;
       }
+
+      this.useBackgroundTracking = enableBackground;
 
       // Reset state
       this.startTime = Date.now();
@@ -124,17 +137,35 @@ class DriveTrackingService {
         eta: null,
       };
 
-      // Start GPS tracking with high accuracy
-      this.locationSubscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: 1000, // Update every second
-          distanceInterval: 5, // Or every 5 meters
-        },
-        (location) => {
-          this.handleLocationUpdate(location);
-        }
-      );
+      // Start appropriate tracking mode
+      if (enableBackground) {
+        // Use background location service for continuous tracking
+        await backgroundLocationService.startBackgroundTracking(backgroundOptions);
+
+        // Subscribe to background location updates
+        this.backgroundUnsubscribe = backgroundLocationService.onLocationUpdate((locations) => {
+          if (locations && locations.length > 0) {
+            // Process the most recent location
+            this.handleLocationUpdate(locations[locations.length - 1]);
+          }
+        });
+
+        console.log("🚗 Drive tracking started (BACKGROUND MODE)");
+      } else {
+        // Use foreground tracking only
+        this.locationSubscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.BestForNavigation,
+            timeInterval: 1000, // Update every second
+            distanceInterval: 5, // Or every 5 meters
+          },
+          (location) => {
+            this.handleLocationUpdate(location);
+          },
+        );
+
+        console.log("🚗 Drive tracking started (FOREGROUND MODE)");
+      }
 
       // Get initial ETA if destination provided
       if (destination) {
@@ -142,10 +173,9 @@ class DriveTrackingService {
       }
 
       this.notifyListeners();
-      console.log('🚗 Drive tracking started');
       return true;
     } catch (error) {
-      console.error('Failed to start drive tracking:', error);
+      console.error("Failed to start drive tracking:", error);
       return false;
     }
   }
@@ -154,9 +184,20 @@ class DriveTrackingService {
    * Stop tracking
    */
   async stopTracking(): Promise<DriveMetrics> {
+    // Stop foreground subscription
     if (this.locationSubscription) {
       this.locationSubscription.remove();
       this.locationSubscription = null;
+    }
+
+    // Stop background tracking
+    if (this.backgroundUnsubscribe) {
+      this.backgroundUnsubscribe();
+      this.backgroundUnsubscribe = null;
+    }
+
+    if (this.useBackgroundTracking) {
+      await backgroundLocationService.stopBackgroundTracking();
     }
 
     this.state.isTracking = false;
@@ -164,8 +205,9 @@ class DriveTrackingService {
 
     const finalMetrics = { ...this.state.metrics };
     this.notifyListeners();
-    
-    console.log('🛑 Drive tracking stopped', finalMetrics);
+
+    const mode = this.useBackgroundTracking ? "BACKGROUND" : "FOREGROUND";
+    console.log(`🛑 Drive tracking stopped (${mode})`, finalMetrics);
     return finalMetrics;
   }
 
@@ -183,7 +225,7 @@ class DriveTrackingService {
         this.previousLocation.coords.latitude,
         this.previousLocation.coords.longitude,
         coords.latitude,
-        coords.longitude
+        coords.longitude,
       );
     }
 
@@ -195,8 +237,7 @@ class DriveTrackingService {
 
     // Calculate average speed
     if (this.state.metrics.duration > 0) {
-      this.state.metrics.averageSpeed = 
-        (this.state.metrics.distance / 1000) / (this.state.metrics.duration / 3600);
+      this.state.metrics.averageSpeed = this.state.metrics.distance / 1000 / (this.state.metrics.duration / 3600);
     }
 
     // Add to route
@@ -234,12 +275,12 @@ class DriveTrackingService {
     if (timeDelta === 0) return;
 
     // Calculate acceleration (m/s²)
-    const acceleration = ((currentSpeed - this.previousSpeed) / 3.6) / timeDelta;
+    const acceleration = (currentSpeed - this.previousSpeed) / 3.6 / timeDelta;
 
     // Hard Braking Detection
     if (acceleration < this.HARD_BRAKE_THRESHOLD) {
       this.addEvent({
-        type: 'hard_brake',
+        type: "hard_brake",
         location: {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
@@ -253,7 +294,7 @@ class DriveTrackingService {
     // Hard Acceleration Detection
     if (acceleration > this.HARD_ACCEL_THRESHOLD) {
       this.addEvent({
-        type: 'hard_acceleration',
+        type: "hard_acceleration",
         location: {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
@@ -268,7 +309,7 @@ class DriveTrackingService {
     if (currentSpeed > this.SPEED_LIMIT_DEFAULT) {
       const overspeed = currentSpeed - this.SPEED_LIMIT_DEFAULT;
       this.addEvent({
-        type: 'speeding',
+        type: "speeding",
         location: {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
@@ -286,7 +327,7 @@ class DriveTrackingService {
   /**
    * Add driving event
    */
-  private addEvent(eventData: Omit<DrivingEvent, 'id' | 'timestamp'>) {
+  private addEvent(eventData: Omit<DrivingEvent, "id" | "timestamp">) {
     const event: DrivingEvent = {
       ...eventData,
       id: `event-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
@@ -304,7 +345,7 @@ class DriveTrackingService {
 
     // Deduct points for each event based on severity
     this.state.metrics.events.forEach((event) => {
-      const deduction = event.severity === 'high' ? 10 : event.severity === 'medium' ? 5 : 2;
+      const deduction = event.severity === "high" ? 10 : event.severity === "medium" ? 5 : 2;
       score -= deduction;
     });
 
@@ -325,9 +366,9 @@ class DriveTrackingService {
 
     try {
       const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
-      
+
       if (!GOOGLE_MAPS_API_KEY) {
-        console.warn('Google Maps API key not found, using simple ETA calculation');
+        console.warn("Google Maps API key not found, using simple ETA calculation");
         // Fallback to simple calculation
         this.calculateSimpleETA(destination);
         return;
@@ -335,35 +376,35 @@ class DriveTrackingService {
 
       const origin = `${this.state.lastLocation.coords.latitude},${this.state.lastLocation.coords.longitude}`;
       const dest = `${destination.latitude},${destination.longitude}`;
-      
+
       const response = await fetch(
         `https://maps.googleapis.com/maps/api/directions/json?` +
-        `origin=${origin}&destination=${dest}&` +
-        `key=${GOOGLE_MAPS_API_KEY}&` +
-        `departure_time=now&traffic_model=best_guess`
+          `origin=${origin}&destination=${dest}&` +
+          `key=${GOOGLE_MAPS_API_KEY}&` +
+          `departure_time=now&traffic_model=best_guess`,
       );
-      
+
       const data = await response.json();
-      
-      if (data.status === 'OK' && data.routes && data.routes.length > 0) {
+
+      if (data.status === "OK" && data.routes && data.routes.length > 0) {
         const route = data.routes[0];
         const leg = route.legs[0];
-        
+
         // Use duration_in_traffic if available, otherwise use duration
         const duration = leg.duration_in_traffic?.value || leg.duration.value;
         const distance = leg.distance.value;
-        
+
         this.state.eta = {
           duration,
           distance,
           arrivalTime: new Date(Date.now() + duration * 1000),
         };
       } else {
-        console.warn('Google Directions API error:', data.status);
+        console.warn("Google Directions API error:", data.status);
         this.calculateSimpleETA(destination);
       }
     } catch (error) {
-      console.error('Failed to update ETA:', error);
+      console.error("Failed to update ETA:", error);
       this.calculateSimpleETA(destination);
     }
   }
@@ -378,12 +419,12 @@ class DriveTrackingService {
       this.state.lastLocation.coords.latitude,
       this.state.lastLocation.coords.longitude,
       destination.latitude,
-      destination.longitude
+      destination.longitude,
     );
 
     // Simple ETA estimation
     const averageSpeed = this.state.metrics.averageSpeed || 50; // km/h
-    const duration = (distance / 1000) / averageSpeed * 3600; // seconds
+    const duration = (distance / 1000 / averageSpeed) * 3600; // seconds
 
     this.state.eta = {
       duration,
@@ -404,21 +445,14 @@ class DriveTrackingService {
   /**
    * Calculate distance between two coordinates (Haversine formula)
    */
-  private calculateDistance(
-    lat1: number,
-    lon1: number,
-    lat2: number,
-    lon2: number
-  ): number {
+  private calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
     const R = 6371e3; // Earth radius in meters
     const φ1 = (lat1 * Math.PI) / 180;
     const φ2 = (lat2 * Math.PI) / 180;
     const Δφ = ((lat2 - lat1) * Math.PI) / 180;
     const Δλ = ((lon2 - lon1) * Math.PI) / 180;
 
-    const a =
-      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
     return R * c;
@@ -427,10 +461,14 @@ class DriveTrackingService {
   /**
    * Get severity level from value
    */
-  private getSeverityFromValue(value: number, mediumThreshold: number, highThreshold: number): 'low' | 'medium' | 'high' {
-    if (value >= highThreshold) return 'high';
-    if (value >= mediumThreshold) return 'medium';
-    return 'low';
+  private getSeverityFromValue(
+    value: number,
+    mediumThreshold: number,
+    highThreshold: number,
+  ): "low" | "medium" | "high" {
+    if (value >= highThreshold) return "high";
+    if (value >= mediumThreshold) return "medium";
+    return "low";
   }
 
   /**

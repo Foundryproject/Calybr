@@ -11,20 +11,22 @@ export default () => ({
     splash: {
       image: "./assets/images/splash-icon.png",
       resizeMode: "contain",
-      backgroundColor: "#ffffff"
+      backgroundColor: "#ffffff",
     },
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.calybr.app",
       config: {
-        googleMapsApiKey: process.env.MAPS_API_KEY || "AIzaSyB1DjZ-zMEe-MvDk-82Um6dghYuAGoOoyI"
+        googleMapsApiKey: process.env.MAPS_API_KEY || "AIzaSyB1DjZ-zMEe-MvDk-82Um6dghYuAGoOoyI",
       },
       infoPlist: {
-        NSLocationAlwaysAndWhenInUseUsageDescription: "Calybr tracks your drives automatically to calculate your DriveScore and help you become a safer driver.",
-        NSLocationWhenInUseUsageDescription: "Calybr needs your location to track your trips and provide driving insights.",
+        NSLocationAlwaysAndWhenInUseUsageDescription:
+          "Calybr tracks your drives automatically to calculate your DriveScore and help you become a safer driver.",
+        NSLocationWhenInUseUsageDescription:
+          "Calybr needs your location to track your trips and provide driving insights.",
         NSMotionUsageDescription: "Calybr uses motion data to automatically detect when you start and stop driving.",
-        UIBackgroundModes: ["location"]
-      }
+        UIBackgroundModes: ["location"],
+      },
     },
     android: {
       edgeToEdgeEnabled: true,
@@ -32,19 +34,22 @@ export default () => ({
       adaptiveIcon: {
         foregroundImage: "./assets/images/android-icon-foreground.png",
         monochromeImage: "./assets/images/android-icon-monochrome.png",
-        backgroundColor: "#ffffff"
+        backgroundColor: "#ffffff",
       },
       config: {
         googleMaps: {
-          apiKey: process.env.MAPS_API_KEY || "AIzaSyB1DjZ-zMEe-MvDk-82Um6dghYuAGoOoyI"
-        }
+          apiKey: process.env.MAPS_API_KEY || "AIzaSyB1DjZ-zMEe-MvDk-82Um6dghYuAGoOoyI",
+        },
       },
       permissions: [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
-        "ACTIVITY_RECOGNITION"
-      ]
+        "ACTIVITY_RECOGNITION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "POST_NOTIFICATIONS",
+      ],
     },
     plugins: [
       "expo-asset",
@@ -58,22 +63,23 @@ export default () => ({
       [
         "expo-location",
         {
-          locationAlwaysAndWhenInUsePermission: "Calybr tracks your drives automatically to calculate your DriveScore and help you become a safer driver.",
+          locationAlwaysAndWhenInUsePermission:
+            "Calybr tracks your drives automatically to calculate your DriveScore and help you become a safer driver.",
           locationWhenInUsePermission: "Calybr needs your location to track your trips and provide driving insights.",
           locationAlwaysPermission: "Allow Calybr to track your trips even when the app is closed or not in use.",
           isAndroidBackgroundLocationEnabled: true,
-          isAndroidForegroundServiceEnabled: true
-        }
-      ]
+          isAndroidForegroundServiceEnabled: true,
+        },
+      ],
     ],
     extra: {
-      SUPABASE_URL: process.env.SUPABASE_URL,
-      SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
-      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+      SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
+      SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+      OPENAI_API_KEY: process.env.EXPO_PUBLIC_OPENAI_API_KEY,
       MAPS_API_KEY: process.env.MAPS_API_KEY,
       eas: {
-        projectId: "your-project-id-here"
-      }
-    }
-  }
+        projectId: "a3720364-4b02-4f5e-b806-66837bf29ff0",
+      },
+    },
+  },
 });

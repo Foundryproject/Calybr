@@ -26,23 +26,23 @@ interface DriveStoreState {
   // Auth state
   isAuthenticated: boolean;
   user: User | null;
-  
+
   // Onboarding state
   hasCompletedOnboarding: boolean;
   onboardingData: OnboardingData | null;
-  
+
   // User preferences
   userPreferences: UserPreferences;
-  
+
   // Score & metrics
   driverScore: DriverScore | null;
-  
+
   // Trips
   trips: Trip[];
-  
+
   // Weekly summary
   weeklySummary: WeeklySummary | null;
-  
+
   // Actions
   login: (user: User) => void;
   logout: () => void;
@@ -51,10 +51,16 @@ interface DriveStoreState {
   setDriverScore: (score: DriverScore) => void;
   addTrip: (trip: Trip) => void;
   setWeeklySummary: (summary: WeeklySummary) => void;
-  
+
   // Auto-tracking state
   isAutoTrackingEnabled: boolean;
   setAutoTrackingEnabled: (enabled: boolean) => void;
+
+  // Auto trip detection
+  isAutoTripDetectionEnabled: boolean;
+  setAutoTripDetectionEnabled: (enabled: boolean) => void;
+  activeAutoTrip: any | null;
+  setActiveAutoTrip: (trip: any | null) => void;
 }
 
 export const useDriveStore = create<DriveStoreState>()(
@@ -75,37 +81,42 @@ export const useDriveStore = create<DriveStoreState>()(
       trips: [],
       weeklySummary: null,
       isAutoTrackingEnabled: false,
-      
+      isAutoTripDetectionEnabled: false,
+      activeAutoTrip: null,
+
       // Actions
       login: (user) => set({ isAuthenticated: true, user }),
-      
-      logout: () => set({ 
-        isAuthenticated: false, 
-        user: null,
-        hasCompletedOnboarding: false,
-        onboardingData: null,
-        driverScore: null,
-        trips: [],
-        weeklySummary: null,
-      }),
-      
+
+      logout: () =>
+        set({
+          isAuthenticated: false,
+          user: null,
+          hasCompletedOnboarding: false,
+          onboardingData: null,
+          driverScore: null,
+          trips: [],
+          weeklySummary: null,
+        }),
+
       completeOnboarding: (data) => set({ hasCompletedOnboarding: true, onboardingData: data }),
-      
+
       updatePreferences: (preferences) =>
         set((state) => ({
           userPreferences: { ...state.userPreferences, ...preferences },
         })),
-      
+
       setDriverScore: (score) => set({ driverScore: score }),
-      
+
       addTrip: (trip) =>
         set((state) => ({
           trips: [trip, ...state.trips].slice(0, 50), // Keep last 50 trips
         })),
-      
+
       setWeeklySummary: (summary) => set({ weeklySummary: summary }),
-      
+
       setAutoTrackingEnabled: (enabled) => set({ isAutoTrackingEnabled: enabled }),
+      setAutoTripDetectionEnabled: (enabled) => set({ isAutoTripDetectionEnabled: enabled }),
+      setActiveAutoTrip: (trip) => set({ activeAutoTrip: trip }),
     }),
     {
       name: "drive-store",
@@ -119,34 +130,29 @@ export const useDriveStore = create<DriveStoreState>()(
         driverScore: state.driverScore,
         trips: state.trips,
       }),
-    }
-  )
+    },
+  ),
 );
 
 // Individual selectors to avoid re-renders
-export const useIsAuthenticated = () => 
-  useDriveStore((s) => s.isAuthenticated);
+export const useIsAuthenticated = () => useDriveStore((s) => s.isAuthenticated);
 
-export const useUser = () => 
-  useDriveStore((s) => s.user);
+export const useUser = () => useDriveStore((s) => s.user);
 
-export const useHasCompletedOnboarding = () => 
-  useDriveStore((s) => s.hasCompletedOnboarding);
+export const useHasCompletedOnboarding = () => useDriveStore((s) => s.hasCompletedOnboarding);
 
-export const useOnboardingData = () => 
-  useDriveStore((s) => s.onboardingData);
+export const useOnboardingData = () => useDriveStore((s) => s.onboardingData);
 
-export const useUserPreferences = () => 
-  useDriveStore((s) => s.userPreferences);
+export const useUserPreferences = () => useDriveStore((s) => s.userPreferences);
 
-export const useDriverScore = () => 
-  useDriveStore((s) => s.driverScore);
+export const useDriverScore = () => useDriveStore((s) => s.driverScore);
 
-export const useTrips = () => 
-  useDriveStore((s) => s.trips);
+export const useTrips = () => useDriveStore((s) => s.trips);
 
-export const useWeeklySummary = () => 
-  useDriveStore((s) => s.weeklySummary);
+export const useWeeklySummary = () => useDriveStore((s) => s.weeklySummary);
 
-export const useAutoTrackingEnabled = () =>
-  useDriveStore((s) => s.isAutoTrackingEnabled);
+export const useAutoTrackingEnabled = () => useDriveStore((s) => s.isAutoTrackingEnabled);
+
+export const useAutoTripDetectionEnabled = () => useDriveStore((s) => s.isAutoTripDetectionEnabled);
+
+export const useActiveAutoTrip = () => useDriveStore((s) => s.activeAutoTrip);

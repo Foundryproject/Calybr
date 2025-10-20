@@ -16,6 +16,7 @@ import TripDetailScreen from "../screens/TripDetailScreen";
 import ActiveTripScreen from "../screens/ActiveTripScreen";
 import TripSummaryScreen from "../screens/TripSummaryScreen";
 import DriveScreen from "../screens/DriveScreen";
+import BackgroundLocationTestScreen from "../screens/BackgroundLocationTestScreen";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -37,20 +38,13 @@ function ProfileStack() {
         headerTintColor: Colors.textPrimary,
       }}
     >
+      <Stack.Screen name="ProfileMain" component={ProfileScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ScoreDetails" component={ScoreDetailsScreen} options={{ title: "Score Details" }} />
       <Stack.Screen
-        name="ProfileMain"
-        component={ProfileScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="Settings"
-        component={SettingsScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="ScoreDetails"
-        component={ScoreDetailsScreen}
-        options={{ title: "Score Details" }}
+        name="BackgroundLocationTest"
+        component={BackgroundLocationTestScreen}
+        options={{ title: "Background Location Test" }}
       />
     </Stack.Navigator>
   );
@@ -73,15 +67,11 @@ function TripsStack() {
         headerTintColor: Colors.textPrimary,
       }}
     >
-      <Stack.Screen
-        name="TripsList"
-        component={TripsScreen}
-        options={{ headerShown: false }}
-      />
+      <Stack.Screen name="TripsList" component={TripsScreen} options={{ headerShown: false }} />
       <Stack.Screen
         name="TripDetail"
         component={TripDetailScreen}
-        options={{ 
+        options={{
           title: "Trip Details",
           headerBackTitle: "Back",
         }}
@@ -89,7 +79,7 @@ function TripsStack() {
       <Stack.Screen
         name="ActiveTrip"
         component={ActiveTripScreen}
-        options={{ 
+        options={{
           title: "Recording Trip",
           headerShown: false,
         }}
@@ -97,7 +87,7 @@ function TripsStack() {
       <Stack.Screen
         name="TripSummary"
         component={TripSummaryScreen}
-        options={{ 
+        options={{
           title: "Trip Summary",
           headerShown: false,
         }}
@@ -137,9 +127,7 @@ export default function MainNavigator() {
         component={TripsStack}
         options={{
           tabBarLabel: "Trips",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="car-outline" size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <Ionicons name="car-outline" size={size} color={color} />,
         }}
       />
       <Tab.Screen
@@ -147,9 +135,7 @@ export default function MainNavigator() {
         component={CoachScreen}
         options={{
           tabBarLabel: "Community",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people-outline" size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} />,
         }}
       />
       <Tab.Screen
@@ -157,9 +143,7 @@ export default function MainNavigator() {
         component={DriveScreen}
         options={{
           tabBarLabel: "Drive",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="navigate" size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <Ionicons name="navigate" size={size} color={color} />,
         }}
       />
       <Tab.Screen
@@ -167,9 +151,7 @@ export default function MainNavigator() {
         component={RewardsScreen}
         options={{
           tabBarLabel: "Rewards",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="trophy-outline" size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <Ionicons name="trophy-outline" size={size} color={color} />,
         }}
       />
       <Tab.Screen
@@ -177,9 +159,7 @@ export default function MainNavigator() {
         component={ProfileStack}
         options={{
           tabBarLabel: "Profile",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
         }}
       />
     </Tab.Navigator>

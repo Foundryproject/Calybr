@@ -1,15 +1,17 @@
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '../lib/supabase';
-import * as WebBrowser from 'expo-web-browser';
-import { makeRedirectUri } from 'expo-auth-session';
+import { supabase, isSupabaseConfigured } from "../lib/supabase";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "../lib/supabase";
+import * as WebBrowser from "expo-web-browser";
+import { makeRedirectUri } from "expo-auth-session";
 
 WebBrowser.maybeCompleteAuthSession();
 
 // Helper to check if Supabase is available and return typed client
 const getSupabase = (): SupabaseClient<Database> => {
   if (!isSupabaseConfigured() || !supabase) {
-    throw new Error('Supabase is not configured. Please add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to your .env file.');
+    throw new Error(
+      "Supabase is not configured. Please add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to your .env file.",
+    );
   }
   return supabase;
 };
@@ -40,7 +42,7 @@ export interface OnboardingData {
 export const signUpWithEmail = async (data: SignUpData) => {
   try {
     const client = getSupabase();
-    
+
     // 1. Create auth user with metadata (Supabase may auto-create profile via trigger)
     const { data: authData, error: authError } = await client.auth.signUp({
       email: data.email,
@@ -54,42 +56,42 @@ export const signUpWithEmail = async (data: SignUpData) => {
     });
 
     if (authError) throw authError;
-    if (!authData.user) throw new Error('No user returned from sign up');
+    if (!authData.user) throw new Error("No user returned from sign up");
 
     // 2. Try to create profile manually (if trigger doesn't exist or RLS blocks it)
     // This may fail due to RLS policy, but we handle it gracefully
     try {
-      const { error: profileError } = await client
-        .from('profiles')
-        .insert({
-          id: authData.user.id,
-          email: data.email,
-          first_name: data.firstName,
-          last_name: data.lastName,
-        });
+      const { error: profileError } = await client.from("profiles").insert({
+        id: authData.user.id,
+        email: data.email,
+        first_name: data.firstName,
+        last_name: data.lastName,
+      });
 
       // Log any errors but don't fail signup
       if (profileError) {
         // Check if it's a duplicate key error (profile already exists from trigger)
-        if (profileError.code === '23505' || profileError.message?.includes('duplicate')) {
-          console.log('Profile already exists (created by database trigger)');
-        } else if (profileError.code === '42501') {
+        if (profileError.code === "23505" || profileError.message?.includes("duplicate")) {
+          console.log("Profile already exists (created by database trigger)");
+        } else if (profileError.code === "42501") {
           // RLS policy error - this is expected if policies aren't set up yet
-          console.warn('RLS policy blocks manual profile creation. Profile may be created by trigger or needs policy fix.');
+          console.warn(
+            "RLS policy blocks manual profile creation. Profile may be created by trigger or needs policy fix.",
+          );
         } else {
-          console.warn('Profile creation warning:', profileError);
+          console.warn("Profile creation warning:", profileError);
         }
       } else {
-        console.log('Profile created successfully');
+        console.log("Profile created successfully");
       }
     } catch (profileError) {
       // Non-critical error - user was created successfully
-      console.warn('Could not create profile manually, but user account was created:', profileError);
+      console.warn("Could not create profile manually, but user account was created:", profileError);
     }
 
     return { user: authData.user, session: authData.session };
   } catch (error) {
-    console.error('Sign up error:', error);
+    console.error("Sign up error:", error);
     throw error;
   }
 };
@@ -142,12 +144,12 @@ export const getCurrentUser = async () => {
  */
 export const resetPassword = async (email: string) => {
   const client = getSupabase();
-  const redirectTo = makeRedirectUri({ path: 'reset-password' });
-  
+  const redirectTo = makeRedirectUri({ path: "reset-password" });
+
   const { data, error } = await client.auth.resetPasswordForEmail(email, {
     redirectTo,
   });
-  
+
   if (error) throw error;
   return data;
 };
@@ -160,7 +162,7 @@ export const updatePassword = async (newPassword: string) => {
   const { data, error } = await client.auth.updateUser({
     password: newPassword,
   });
-  
+
   if (error) throw error;
   return data;
 };
@@ -168,17 +170,12 @@ export const updatePassword = async (newPassword: string) => {
 /**
  * Complete onboarding by updating user profile
  */
-export const completeOnboarding = async (onboardingData: OnboardingData) => {
+export const completeOnboarding = async (userId: string, onboardingData: OnboardingData) => {
   try {
     const client = getSupabase();
-    const { data: { user } } = await client.auth.getUser();
-    
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
 
     const { error } = await client
-      .from('profiles')
+      .from("profiles")
       .update({
         phone_number: onboardingData.phoneNumber,
         age: onboardingData.age,
@@ -191,11 +188,11 @@ export const completeOnboarding = async (onboardingData: OnboardingData) => {
         country: onboardingData.country,
         onboarding_completed: true,
       })
-      .eq('id', user.id);
+      .eq("id", userId);
 
     if (error) throw error;
   } catch (error) {
-    console.error('Onboarding error:', error);
+    console.error("Onboarding error:", error);
     throw error;
   }
 };
@@ -206,22 +203,20 @@ export const completeOnboarding = async (onboardingData: OnboardingData) => {
 export const getUserProfile = async () => {
   try {
     const client = getSupabase();
-    const { data: { user } } = await client.auth.getUser();
-    
+    const {
+      data: { user },
+    } = await client.auth.getUser();
+
     if (!user) {
-      throw new Error('User not authenticated');
+      throw new Error("User not authenticated");
     }
 
-    const { data, error } = await client
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
+    const { data, error } = await client.from("profiles").select("*").eq("id", user.id).single();
 
     if (error) throw error;
     return data;
   } catch (error) {
-    console.error('Get profile error:', error);
+    console.error("Get profile error:", error);
     throw error;
   }
 };
@@ -229,13 +224,17 @@ export const getUserProfile = async () => {
 /**
  * Update user profile
  */
-export const updateUserProfile = async (updates: Partial<OnboardingData & { firstName?: string; lastName?: string }>) => {
+export const updateUserProfile = async (
+  updates: Partial<OnboardingData & { firstName?: string; lastName?: string }>,
+) => {
   try {
     const client = getSupabase();
-    const { data: { user } } = await client.auth.getUser();
-    
+    const {
+      data: { user },
+    } = await client.auth.getUser();
+
     if (!user) {
-      throw new Error('User not authenticated');
+      throw new Error("User not authenticated");
     }
 
     // Map updates to database columns
@@ -252,14 +251,11 @@ export const updateUserProfile = async (updates: Partial<OnboardingData & { firs
     if (updates.city !== undefined) profileUpdates.city = updates.city;
     if (updates.country !== undefined) profileUpdates.country = updates.country;
 
-    const { error } = await client
-      .from('profiles')
-      .update(profileUpdates)
-      .eq('id', user.id);
+    const { error } = await client.from("profiles").update(profileUpdates).eq("id", user.id);
 
     if (error) throw error;
   } catch (error) {
-    console.error('Update profile error:', error);
+    console.error("Update profile error:", error);
     throw error;
   }
 };
@@ -272,7 +268,7 @@ export const isOnboardingCompleted = async (): Promise<boolean> => {
     const profile = await getUserProfile();
     return profile?.onboarding_completed ?? false;
   } catch (error) {
-    console.error('Check onboarding error:', error);
+    console.error("Check onboarding error:", error);
     return false;
   }
 };

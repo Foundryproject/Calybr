@@ -4,8 +4,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from "../utils/theme";
-import { useUserPreferences, useDriveStore, useAutoTrackingEnabled } from "../state/driveStore";
+import {
+  useUserPreferences,
+  useDriveStore,
+  useAutoTrackingEnabled,
+  useUser,
+  useAutoTripDetectionEnabled,
+} from "../state/driveStore";
 import { tripTracker } from "../services/trip-tracker";
+import { autoTripManager } from "../services/auto-trip-manager";
 import * as Location from "expo-location";
 
 export default function SettingsScreen() {
@@ -15,62 +22,72 @@ export default function SettingsScreen() {
   const logout = useDriveStore((s) => s.logout);
   const isAutoTrackingEnabled = useAutoTrackingEnabled();
   const setAutoTrackingEnabled = useDriveStore((s) => s.setAutoTrackingEnabled);
+  const isAutoTripDetectionEnabled = useAutoTripDetectionEnabled();
+  const setAutoTripDetectionEnabled = useDriveStore((s) => s.setAutoTripDetectionEnabled);
+  const user = useUser();
   const [showPermissionModal, setShowPermissionModal] = useState(false);
 
   const handleLogout = () => {
-    Alert.alert(
-      "Log Out",
-      "Are you sure you want to log out?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Log Out", 
-          style: "destructive",
-          onPress: () => logout()
-        },
-      ]
-    );
+    Alert.alert("Log Out", "Are you sure you want to log out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Log Out",
+        style: "destructive",
+        onPress: () => logout(),
+      },
+    ]);
   };
 
+  // Note: Auto tracking is now handled by autoTripDetection
+  // This function is kept for backwards compatibility but redirects to the new system
   const handleAutoTrackingToggle = async (enabled: boolean) => {
-    if (enabled) {
-      // Check permissions first
-      const { status: foregroundStatus } = await Location.getForegroundPermissionsAsync();
-      
-      if (foregroundStatus !== 'granted') {
-        setShowPermissionModal(true);
-        return;
-      }
-
-      // Enable tracking
-      const success = await tripTracker.initialize();
-      if (success) {
-        setAutoTrackingEnabled(true);
-        Alert.alert(
-          "Auto-Tracking Enabled",
-          "Your trips will now be tracked automatically when you start driving.",
-          [{ text: "OK" }]
-        );
-      }
-    } else {
-      // Disable tracking
-      await tripTracker.shutdown();
-      setAutoTrackingEnabled(false);
-    }
+    // Redirect to auto trip detection toggle
+    await handleAutoTripDetectionToggle(enabled);
   };
 
   const requestLocationPermission = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
-    
-    if (status === 'granted') {
+
+    if (status === "granted") {
       setShowPermissionModal(false);
       handleAutoTrackingToggle(true);
     } else {
       Alert.alert(
         "Permission Required",
         "Location permission is required for automatic trip tracking. Please enable it in your device settings.",
-        [{ text: "OK" }]
+        [{ text: "OK" }],
       );
+    }
+  };
+
+  const handleAutoTripDetectionToggle = async (enabled: boolean) => {
+    if (enabled) {
+      if (!user?.id) {
+        Alert.alert("Error", "You must be logged in to use automatic trip detection");
+        return;
+      }
+
+      // Check permissions first
+      const { status: foregroundStatus } = await Location.getForegroundPermissionsAsync();
+      const { status: backgroundStatus } = await Location.getBackgroundPermissionsAsync();
+
+      if (foregroundStatus !== "granted" || backgroundStatus !== "granted") {
+        setShowPermissionModal(true);
+        return;
+      }
+
+      // Start auto trip detection
+      const success = await autoTripManager.start(user.id);
+      if (success) {
+        setAutoTripDetectionEnabled(true);
+        // Silent success - no alert needed
+      } else {
+        Alert.alert("Error", "Failed to enable automatic trip detection. Please check permissions.");
+      }
+    } else {
+      // Disable auto trip detection
+      await autoTripManager.stop();
+      setAutoTripDetectionEnabled(false);
     }
   };
 
@@ -82,7 +99,15 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
-        <View style={{ paddingHorizontal: Spacing.xl, paddingTop: Spacing.xl, flexDirection: "row", alignItems: "center", marginBottom: Spacing.lg }}>
+        <View
+          style={{
+            paddingHorizontal: Spacing.xl,
+            paddingTop: Spacing.xl,
+            flexDirection: "row",
+            alignItems: "center",
+            marginBottom: Spacing.lg,
+          }}
+        >
           <Pressable onPress={() => navigation.goBack()} style={{ marginRight: Spacing.md }}>
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
           </Pressable>
@@ -151,10 +176,10 @@ export default function SettingsScreen() {
                 </Text>
               </View>
               <Switch
-                value={isAutoTrackingEnabled}
-                onValueChange={handleAutoTrackingToggle}
+                value={isAutoTripDetectionEnabled}
+                onValueChange={handleAutoTripDetectionToggle}
                 trackColor={{ false: Colors.divider, true: Colors.primary + "80" }}
-                thumbColor={isAutoTrackingEnabled ? Colors.primary : Colors.surface}
+                thumbColor={isAutoTripDetectionEnabled ? Colors.primary : Colors.surface}
                 ios_backgroundColor={Colors.divider}
               />
             </View>
@@ -292,9 +317,7 @@ export default function SettingsScreen() {
                       paddingVertical: Spacing.md,
                       paddingHorizontal: Spacing.lg,
                       backgroundColor:
-                        preferences.clipRetentionDays === days
-                          ? Colors.primary
-                          : Colors.surfaceSecondary,
+                        preferences.clipRetentionDays === days ? Colors.primary : Colors.surfaceSecondary,
                       borderRadius: BorderRadius.small,
                       alignItems: "center",
                     }}
@@ -303,10 +326,7 @@ export default function SettingsScreen() {
                       style={{
                         fontSize: Typography.body.fontSize,
                         fontWeight: "600",
-                        color:
-                          preferences.clipRetentionDays === days
-                            ? Colors.textPrimary
-                            : Colors.textSecondary,
+                        color: preferences.clipRetentionDays === days ? Colors.textPrimary : Colors.textSecondary,
                       }}
                     >
                       {days} days
@@ -375,6 +395,75 @@ export default function SettingsScreen() {
                 thumbColor={Colors.surface}
               />
             </View>
+          </View>
+        </View>
+
+        {/* Developer Tools */}
+        <View style={{ paddingHorizontal: Spacing.xl, paddingTop: Spacing.xl }}>
+          <Text
+            style={{
+              fontSize: Typography.h3.fontSize,
+              fontWeight: "600",
+              color: Colors.textPrimary,
+              marginBottom: Spacing.lg,
+            }}
+          >
+            Developer Tools
+          </Text>
+
+          <View
+            style={{
+              backgroundColor: Colors.surface,
+              borderRadius: BorderRadius.medium,
+              ...Shadow.subtle,
+            }}
+          >
+            <Pressable
+              onPress={() => (navigation as any).navigate("BackgroundLocationTest")}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: Spacing.lg,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: Colors.primary + "20",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    marginRight: Spacing.md,
+                  }}
+                >
+                  <Ionicons name="location" size={20} color={Colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: Typography.body.fontSize,
+                      fontWeight: "500",
+                      color: Colors.textPrimary,
+                      marginBottom: 2,
+                    }}
+                  >
+                    Test Background Location
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: Typography.bodySmall.fontSize,
+                      color: Colors.textSecondary,
+                    }}
+                  >
+                    Debug location tracking
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
+            </Pressable>
           </View>
         </View>
 
@@ -528,25 +617,41 @@ export default function SettingsScreen() {
                   lineHeight: 24,
                 }}
               >
-                Calybr needs access to your location to automatically detect and track your drives. This helps calculate your DriveScore without you having to manually start each trip.
+                Calybr needs access to your location to automatically detect and track your drives. This helps calculate
+                your DriveScore without you having to manually start each trip.
               </Text>
             </View>
 
             <View style={{ marginBottom: Spacing.md }}>
               <View style={{ flexDirection: "row", marginBottom: Spacing.md }}>
-                <Ionicons name="checkmark-circle" size={24} color={Colors.success} style={{ marginRight: Spacing.sm }} />
+                <Ionicons
+                  name="checkmark-circle"
+                  size={24}
+                  color={Colors.success}
+                  style={{ marginRight: Spacing.sm }}
+                />
                 <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textPrimary, flex: 1 }}>
                   Never miss a trip
                 </Text>
               </View>
               <View style={{ flexDirection: "row", marginBottom: Spacing.md }}>
-                <Ionicons name="checkmark-circle" size={24} color={Colors.success} style={{ marginRight: Spacing.sm }} />
+                <Ionicons
+                  name="checkmark-circle"
+                  size={24}
+                  color={Colors.success}
+                  style={{ marginRight: Spacing.sm }}
+                />
                 <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textPrimary, flex: 1 }}>
                   Automatic start and stop
                 </Text>
               </View>
               <View style={{ flexDirection: "row", marginBottom: Spacing.md }}>
-                <Ionicons name="checkmark-circle" size={24} color={Colors.success} style={{ marginRight: Spacing.sm }} />
+                <Ionicons
+                  name="checkmark-circle"
+                  size={24}
+                  color={Colors.success}
+                  style={{ marginRight: Spacing.sm }}
+                />
                 <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textPrimary, flex: 1 }}>
                   Battery-optimized tracking
                 </Text>
