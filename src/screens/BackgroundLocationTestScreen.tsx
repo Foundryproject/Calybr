@@ -163,10 +163,12 @@ export default function BackgroundLocationTestScreen() {
             />
             <Text
               style={{
+                flex: 1,
                 fontSize: Typography.body.fontSize,
                 fontWeight: "600",
                 color: Colors.textPrimary,
               }}
+              numberOfLines={2}
             >
               {hasPermission ? "✅ Location Permission Granted" : "⚠️ Location Permission Required"}
             </Text>
@@ -277,7 +279,7 @@ export default function BackgroundLocationTestScreen() {
                   color={testStatus === "driving" || testStatus === "stopping" || testStatus === "complete" ? Colors.success : Colors.textTertiary}
                   style={{ marginRight: Spacing.sm }}
                 />
-                <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textPrimary }}>
+                <Text style={{ flex: 1, fontSize: Typography.body.fontSize, color: Colors.textPrimary }}>
                   Simulating Driving
                 </Text>
               </View>
@@ -289,7 +291,7 @@ export default function BackgroundLocationTestScreen() {
                   color={testStatus === "stopping" || testStatus === "complete" ? Colors.success : Colors.textTertiary}
                   style={{ marginRight: Spacing.sm }}
                 />
-                <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textPrimary }}>
+                <Text style={{ flex: 1, fontSize: Typography.body.fontSize, color: Colors.textPrimary }}>
                   Simulating Stop
                 </Text>
               </View>
@@ -301,7 +303,7 @@ export default function BackgroundLocationTestScreen() {
                   color={testStatus === "complete" ? Colors.success : Colors.textTertiary}
                   style={{ marginRight: Spacing.sm }}
                 />
-                <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textPrimary }}>
+                <Text style={{ flex: 1, fontSize: Typography.body.fontSize, color: Colors.textPrimary }}>
                   Complete
                 </Text>
               </View>
@@ -330,10 +332,12 @@ export default function BackgroundLocationTestScreen() {
               />
               <Text
                 style={{
+                  flex: 1,
                   fontSize: Typography.body.fontSize,
                   fontWeight: "600",
                   color: Colors.textPrimary,
                 }}
+                numberOfLines={1}
               >
                 🚗 Trip in Progress
               </Text>
@@ -343,6 +347,7 @@ export default function BackgroundLocationTestScreen() {
                 fontSize: Typography.bodySmall.fontSize,
                 color: Colors.textSecondary,
               }}
+              numberOfLines={3}
             >
               Distance: {((activeAutoTrip.distance || 0) / 1000).toFixed(2)} km
               {"\n"}
@@ -372,13 +377,14 @@ export default function BackgroundLocationTestScreen() {
             >
               Test Logs
             </Text>
-            <View
+            <ScrollView
               style={{
                 backgroundColor: Colors.background,
                 borderRadius: BorderRadius.small,
                 padding: Spacing.md,
                 maxHeight: 300,
               }}
+              nestedScrollEnabled
             >
               {logs.map((log, index) => (
                 <Text
@@ -389,11 +395,12 @@ export default function BackgroundLocationTestScreen() {
                     fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
                     marginBottom: 4,
                   }}
+                  numberOfLines={3}
                 >
                   {log}
                 </Text>
               ))}
-            </View>
+            </ScrollView>
           </View>
         )}
 
