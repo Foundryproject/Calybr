@@ -27,6 +27,9 @@ export default function BackgroundLocationTestScreen() {
   const [logs, setLogs] = useState<string[]>([]);
   const [isTesting, setIsTesting] = useState(false);
   const [testStatus, setTestStatus] = useState<"idle" | "driving" | "stopping" | "complete">("idle");
+  const [testMode, setTestMode] = useState<"simulation" | "real" | null>(null);
+  const [isRealDriveActive, setIsRealDriveActive] = useState(false);
+  const [tripSummary, setTripSummary] = useState<any>(null);
 
   useEffect(() => {
     checkPermissions();
@@ -46,16 +49,32 @@ export default function BackgroundLocationTestScreen() {
   const setupAutoTripListener = () => {
     const unsubStart = autoTripDetection.onTripStart((trip) => {
       addLog("🚗 Trip Started!");
-      Alert.alert("Trip Started!", "Automatic trip detection is working!");
+      if (testMode === "real") {
+        setIsRealDriveActive(true);
+        Alert.alert("Trip Started!", "Drive safely! The app is tracking your trip.");
+      }
     });
 
     const unsubEnd = autoTripDetection.onTripEnd((trip) => {
       const distance = (trip.distance / 1000).toFixed(2);
       const duration = (trip.duration / 60).toFixed(1);
+      const avgSpeed = trip.averageSpeed?.toFixed(1) || "0";
+      
       addLog(`🏁 Trip Ended! ${distance}km in ${duration}min`);
-      Alert.alert("Trip Complete!", `Distance: ${distance}km\nDuration: ${duration}min`);
+      
+      // Store trip summary
+      setTripSummary({
+        distance: distance,
+        duration: duration,
+        averageSpeed: avgSpeed,
+        maxSpeed: trip.maxSpeed?.toFixed(1) || "0",
+        startTime: new Date(trip.startTime).toLocaleTimeString(),
+        endTime: new Date(trip.endTime || Date.now()).toLocaleTimeString(),
+      });
+      
       setTestStatus("complete");
       setIsTesting(false);
+      setIsRealDriveActive(false);
     });
 
     return () => {
@@ -68,17 +87,19 @@ export default function BackgroundLocationTestScreen() {
     setShowPermissionModal(true);
   };
 
-  const runFullTest = async () => {
+  const runSimulationTest = async () => {
     if (permissionStatus.foreground !== "granted") {
       Alert.alert("Permission Required", "Please grant location permission first.");
       setShowPermissionModal(true);
       return;
     }
 
+    setTestMode("simulation");
     setIsTesting(true);
     setTestStatus("driving");
     setLogs([]);
-    addLog("🧪 Starting test sequence...");
+    setTripSummary(null);
+    addLog("🧪 Starting simulation test...");
 
     try {
       // Get current location first
@@ -106,14 +127,62 @@ export default function BackgroundLocationTestScreen() {
       }
 
       setTestStatus("complete");
-      addLog("✅ Test sequence complete!");
-      Alert.alert("Test Complete!", "Check the logs above for details.");
+      addLog("✅ Simulation complete!");
+      
+      // Create mock summary
+      setTripSummary({
+        distance: "2.5",
+        duration: "5.2",
+        averageSpeed: "28.8",
+        maxSpeed: "35.0",
+        startTime: new Date(Date.now() - 312000).toLocaleTimeString(),
+        endTime: new Date().toLocaleTimeString(),
+      });
+      
+      Alert.alert("Test Complete!", "Check the summary below!");
     } catch (error: any) {
       addLog(`❌ Error: ${error.message}`);
       Alert.alert("Test Failed", error.message);
     } finally {
       setIsTesting(false);
+      setTestMode(null);
     }
+  };
+
+  const startRealDrive = async () => {
+    if (permissionStatus.foreground !== "granted") {
+      Alert.alert("Permission Required", "Please grant location permission first.");
+      setShowPermissionModal(true);
+      return;
+    }
+
+    setTestMode("real");
+    setLogs([]);
+    setTripSummary(null);
+    addLog("🚗 Real drive mode activated!");
+    addLog("📍 Waiting for you to start driving...");
+    addLog("💡 Drive at 15+ km/h for 10 seconds to start trip");
+    
+    // Start auto trip detection
+    try {
+      await autoTripManager.initialize();
+      setIsRealDriveActive(true);
+      Alert.alert(
+        "Ready to Drive!",
+        "Start driving at 15+ km/h for 10 seconds. The trip will automatically be detected and tracked.",
+        [{ text: "Got it!" }]
+      );
+    } catch (error: any) {
+      addLog(`❌ Error: ${error.message}`);
+      Alert.alert("Error", "Failed to start real drive mode");
+    }
+  };
+
+  const stopRealDrive = () => {
+    setIsRealDriveActive(false);
+    setTestMode(null);
+    addLog("🛑 Real drive mode deactivated");
+    Alert.alert("Drive Mode Stopped", "You can start a new test anytime.");
   };
 
   const hasPermission = permissionStatus.foreground === "granted";
@@ -208,13 +277,94 @@ export default function BackgroundLocationTestScreen() {
           )}
         </View>
 
-        {/* Test Button */}
-        {hasPermission && (
+        {/* Test Buttons */}
+        {hasPermission && !isRealDriveActive && (
+          <View style={{ gap: Spacing.md, marginBottom: Spacing.lg }}>
+            {/* Simulation Button */}
+            <Pressable
+              onPress={runSimulationTest}
+              disabled={isTesting}
+              style={{
+                backgroundColor: isTesting ? Colors.textTertiary : Colors.primary,
+                paddingVertical: Spacing.xl,
+                borderRadius: BorderRadius.medium,
+                alignItems: "center",
+                ...Shadow.medium,
+              }}
+            >
+              <Ionicons
+                name={isTesting ? "hourglass-outline" : "flask"}
+                size={32}
+                color={Colors.textPrimary}
+                style={{ marginBottom: Spacing.sm }}
+              />
+              <Text
+                style={{
+                  fontSize: Typography.h3.fontSize,
+                  fontWeight: "600",
+                  color: Colors.textPrimary,
+                  marginBottom: Spacing.xs,
+                }}
+              >
+                {isTesting ? "Running Simulation..." : "Run Simulation"}
+              </Text>
+              <Text
+                style={{
+                  fontSize: Typography.bodySmall.fontSize,
+                  color: Colors.textSecondary,
+                }}
+              >
+                {isTesting ? "Please wait..." : "Quick automated test (15 seconds)"}
+              </Text>
+            </Pressable>
+
+            {/* Real Drive Button */}
+            <Pressable
+              onPress={startRealDrive}
+              disabled={isTesting}
+              style={{
+                backgroundColor: isTesting ? Colors.textTertiary : Colors.success,
+                paddingVertical: Spacing.xl,
+                borderRadius: BorderRadius.medium,
+                alignItems: "center",
+                ...Shadow.medium,
+              }}
+            >
+              <Ionicons
+                name="car-sport"
+                size={32}
+                color="#FFFFFF"
+                style={{ marginBottom: Spacing.sm }}
+              />
+              <Text
+                style={{
+                  fontSize: Typography.h3.fontSize,
+                  fontWeight: "600",
+                  color: "#FFFFFF",
+                  marginBottom: Spacing.xs,
+                }}
+              >
+                Start Real Drive
+              </Text>
+              <Text
+                style={{
+                  fontSize: Typography.bodySmall.fontSize,
+                  color: "#FFFFFF",
+                  opacity: 0.9,
+                }}
+              >
+                Actually drive and track your trip
+              </Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* Stop Real Drive Button */}
+        {isRealDriveActive && (
           <Pressable
-            onPress={runFullTest}
-            disabled={isTesting}
+            onPress={stopRealDrive}
             style={{
-              backgroundColor: isTesting ? Colors.textTertiary : Colors.primary,
+              backgroundColor: Colors.error,
               paddingVertical: Spacing.xl,
               borderRadius: BorderRadius.medium,
               alignItems: "center",
@@ -223,28 +373,29 @@ export default function BackgroundLocationTestScreen() {
             }}
           >
             <Ionicons
-              name={isTesting ? "hourglass-outline" : "play-circle"}
+              name="stop-circle"
               size={32}
-              color={Colors.textPrimary}
+              color="#FFFFFF"
               style={{ marginBottom: Spacing.sm }}
             />
             <Text
               style={{
                 fontSize: Typography.h2.fontSize,
                 fontWeight: "600",
-                color: Colors.textPrimary,
+                color: "#FFFFFF",
                 marginBottom: Spacing.xs,
               }}
             >
-              {isTesting ? "Testing..." : "Run Test"}
+              Stop Tracking
             </Text>
             <Text
               style={{
                 fontSize: Typography.bodySmall.fontSize,
-                color: Colors.textSecondary,
+                color: "#FFFFFF",
+                opacity: 0.9,
               }}
             >
-              {isTesting ? "Please wait..." : "Test trip detection automatically"}
+              End real drive mode
             </Text>
           </Pressable>
         )}
@@ -353,6 +504,82 @@ export default function BackgroundLocationTestScreen() {
               {"\n"}
               Duration: {Math.floor((activeAutoTrip.duration || 0) / 60)} min
             </Text>
+          </View>
+        )}
+
+        {/* Trip Summary */}
+        {tripSummary && (
+          <View
+            style={{
+              backgroundColor: Colors.success + "10",
+              borderRadius: BorderRadius.medium,
+              padding: Spacing.lg,
+              marginBottom: Spacing.lg,
+              borderWidth: 2,
+              borderColor: Colors.success,
+              ...Shadow.medium,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: Typography.h2.fontSize,
+                fontWeight: "600",
+                color: Colors.textPrimary,
+                marginBottom: Spacing.lg,
+                textAlign: "center",
+              }}
+            >
+              🎉 Trip Complete!
+            </Text>
+
+            <View style={{ gap: Spacing.md }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textSecondary }}>
+                  📏 Distance
+                </Text>
+                <Text style={{ fontSize: Typography.h3.fontSize, fontWeight: "600", color: Colors.textPrimary }}>
+                  {tripSummary.distance} km
+                </Text>
+              </View>
+
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textSecondary }}>
+                  ⏱️ Duration
+                </Text>
+                <Text style={{ fontSize: Typography.h3.fontSize, fontWeight: "600", color: Colors.textPrimary }}>
+                  {tripSummary.duration} min
+                </Text>
+              </View>
+
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textSecondary }}>
+                  🚗 Avg Speed
+                </Text>
+                <Text style={{ fontSize: Typography.h3.fontSize, fontWeight: "600", color: Colors.textPrimary }}>
+                  {tripSummary.averageSpeed} km/h
+                </Text>
+              </View>
+
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textSecondary }}>
+                  ⚡ Max Speed
+                </Text>
+                <Text style={{ fontSize: Typography.h3.fontSize, fontWeight: "600", color: Colors.textPrimary }}>
+                  {tripSummary.maxSpeed} km/h
+                </Text>
+              </View>
+
+              <View style={{ height: 1, backgroundColor: Colors.divider, marginVertical: Spacing.sm }} />
+
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>
+                  Start: {tripSummary.startTime}
+                </Text>
+                <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>
+                  End: {tripSummary.endTime}
+                </Text>
+              </View>
+            </View>
           </View>
         )}
 
