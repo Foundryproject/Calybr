@@ -1,8 +1,7 @@
 /**
  * Background Location Test Screen
  *
- * Use this screen to test and debug background location tracking
- * Shows real-time status, location updates, and provides controls
+ * Simple, intuitive screen for testing trip detection
  */
 
 import React, { useState, useEffect } from "react";
@@ -10,97 +9,58 @@ import { View, Text, ScrollView, Pressable, Alert, Platform, Linking } from "rea
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import * as TaskManager from "expo-task-manager";
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from "../utils/theme";
-import { backgroundLocationService, BACKGROUND_LOCATION_TASK } from "../services/background-location.service";
+import { backgroundLocationService } from "../services/background-location.service";
 import { autoTripDetection } from "../services/auto-trip-detection.service";
-import { autoTripManager } from "../services/auto-trip-manager";
-import { useUser, useActiveAutoTrip, useAutoTripDetectionEnabled } from "../state/driveStore";
+import { useUser, useActiveAutoTrip } from "../state/driveStore";
 import LocationPermissionModal from "../components/LocationPermissionModal";
 
 export default function BackgroundLocationTestScreen() {
   const user = useUser();
   const activeAutoTrip = useActiveAutoTrip();
-  const isAutoTripDetectionEnabled = useAutoTripDetectionEnabled();
 
   const [permissionStatus, setPermissionStatus] = useState({
     foreground: "undetermined" as Location.PermissionStatus,
     background: "undetermined" as Location.PermissionStatus,
   });
-  const [isTracking, setIsTracking] = useState(false);
-  const [lastLocation, setLastLocation] = useState<Location.LocationObject | null>(null);
-  const [locationCount, setLocationCount] = useState(0);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
-  const [tripDetectionState, setTripDetectionState] = useState("idle");
-  const [simulatedSpeed, setSimulatedSpeed] = useState(0);
+  const [isTesting, setIsTesting] = useState(false);
+  const [testStatus, setTestStatus] = useState<"idle" | "driving" | "stopping" | "complete">("idle");
 
   useEffect(() => {
-    checkStatus();
-    setupLocationListener();
+    checkPermissions();
     setupAutoTripListener();
   }, []);
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
-    setLogs((prev) => [`[${timestamp}] ${message}`, ...prev].slice(0, 50));
+    setLogs((prev) => [`[${timestamp}] ${message}`, ...prev].slice(0, 20));
   };
 
-  const checkStatus = async () => {
+  const checkPermissions = async () => {
     const status = await backgroundLocationService.getPermissionStatus();
     setPermissionStatus(status);
-
-    const tracking = await backgroundLocationService.isTrackingActive();
-    setIsTracking(tracking);
-
-    addLog(`Status checked: Tracking=${tracking}, FG=${status.foreground}, BG=${status.background}`);
-  };
-
-  const setupLocationListener = () => {
-    const unsubscribe = backgroundLocationService.onLocationUpdate((locations) => {
-      if (locations && locations.length > 0) {
-        const loc = locations[locations.length - 1];
-        setLastLocation(loc);
-        setLocationCount((prev) => prev + locations.length);
-
-        const speed = (loc.coords.speed || 0) * 3.6;
-        addLog(
-          `📍 Location received: ${loc.coords.latitude.toFixed(6)}, ${loc.coords.longitude.toFixed(6)}, ${speed.toFixed(1)} km/h`,
-        );
-      }
-    });
-
-    return unsubscribe;
   };
 
   const setupAutoTripListener = () => {
     const unsubStart = autoTripDetection.onTripStart((trip) => {
-      addLog(`🚗 TRIP STARTED! ID: ${trip.id}`);
-    });
-
-    const unsubUpdate = autoTripDetection.onTripUpdate((trip) => {
-      const distance = (trip.distance / 1000).toFixed(2);
-      const duration = (trip.duration / 60).toFixed(1);
-      addLog(`📊 Trip update: ${distance}km, ${duration}min, ${trip.averageSpeed.toFixed(1)} km/h avg`);
+      addLog("🚗 Trip Started!");
+      Alert.alert("Trip Started!", "Automatic trip detection is working!");
     });
 
     const unsubEnd = autoTripDetection.onTripEnd((trip) => {
       const distance = (trip.distance / 1000).toFixed(2);
       const duration = (trip.duration / 60).toFixed(1);
-      addLog(`🏁 TRIP ENDED! Distance: ${distance}km, Duration: ${duration}min`);
+      addLog(`🏁 Trip Ended! ${distance}km in ${duration}min`);
+      Alert.alert("Trip Complete!", `Distance: ${distance}km\nDuration: ${duration}min`);
+      setTestStatus("complete");
+      setIsTesting(false);
     });
-
-    // Update state periodically
-    const interval = setInterval(() => {
-      const state = autoTripDetection.getState();
-      setTripDetectionState(state.state);
-    }, 1000);
 
     return () => {
       unsubStart();
-      unsubUpdate();
       unsubEnd();
-      clearInterval(interval);
     };
   };
 
@@ -108,185 +68,55 @@ export default function BackgroundLocationTestScreen() {
     setShowPermissionModal(true);
   };
 
-  const handleStartTracking = async () => {
-    addLog("🚀 Starting background tracking...");
-
-    const success = await backgroundLocationService.startBackgroundTracking();
-
-    if (success) {
-      setIsTracking(true);
-      addLog("✅ Background tracking started successfully");
-      Alert.alert(
-        "Tracking Started!",
-        Platform.OS === "ios"
-          ? "Now minimize the app or lock your screen. You should see a blue bar when tracking."
-          : "Now minimize the app or lock your screen. You should see a notification.",
-      );
-    } else {
-      addLog("❌ Failed to start tracking");
-      Alert.alert("Error", "Failed to start background tracking. Check permissions.");
-    }
-
-    await checkStatus();
-  };
-
-  const handleStopTracking = async () => {
-    addLog("🛑 Stopping background tracking...");
-
-    await backgroundLocationService.stopBackgroundTracking();
-    setIsTracking(false);
-
-    addLog("✅ Background tracking stopped");
-    await checkStatus();
-  };
-
-  const handleTestForeground = async () => {
-    addLog("🧪 Testing foreground location...");
-
-    try {
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-
-      setLastLocation(location);
-      addLog(`✅ Foreground location: ${location.coords.latitude.toFixed(6)}, ${location.coords.longitude.toFixed(6)}`);
-    } catch (error: any) {
-      addLog(`❌ Foreground test failed: ${error.message}`);
-    }
-  };
-
-  const handleCheckTaskStatus = async () => {
-    try {
-      const isDefined = await TaskManager.isTaskDefined(BACKGROUND_LOCATION_TASK);
-      const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK);
-
-      addLog(`Task defined: ${isDefined}, Task registered: ${isRegistered}`);
-
-      Alert.alert("Task Status", `Task Defined: ${isDefined}\nTask Registered: ${isRegistered}`);
-    } catch (error: any) {
-      addLog(`❌ Task check failed: ${error.message}`);
-    }
-  };
-
-  const clearLogs = () => {
-    setLogs([]);
-    setLocationCount(0);
-  };
-
-  const handleStartAutoTripDetection = async () => {
-    if (!user?.id) {
-      Alert.alert("Error", "You must be logged in");
+  const runFullTest = async () => {
+    if (permissionStatus.foreground !== "granted") {
+      Alert.alert("Permission Required", "Please grant location permission first.");
+      setShowPermissionModal(true);
       return;
     }
 
-    addLog("🚀 Starting auto trip detection...");
-    const success = await autoTripManager.start(user.id);
+    setIsTesting(true);
+    setTestStatus("driving");
+    setLogs([]);
+    addLog("🧪 Starting test sequence...");
 
-    if (success) {
-      addLog("✅ Auto trip detection started");
-      Alert.alert(
-        "Auto Trip Detection Started",
-        "Drive at 15+ km/h for 10 seconds to trigger a trip. Stop for 2+ minutes to end it.",
-      );
-    } else {
-      addLog("❌ Failed to start auto trip detection");
-      Alert.alert("Error", "Failed to start. Check permissions.");
-    }
-  };
+    try {
+      // Get current location first
+      addLog("📍 Getting your location...");
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      addLog(`✅ Location: ${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)}`);
 
-  const handleStopAutoTripDetection = async () => {
-    addLog("🛑 Stopping auto trip detection...");
-    await autoTripManager.stop();
-    addLog("✅ Auto trip detection stopped");
-  };
-
-  const handleSimulateDriving = async () => {
-    addLog("🧪 Simulating driving (20 km/h for 15 seconds)...");
-
-    // Simulate 15 seconds of driving at 20 km/h
-    for (let i = 0; i < 15; i++) {
-      const currentSpeed = 20 + Math.random() * 5;
-      setSimulatedSpeed(currentSpeed);
-
-      if (lastLocation) {
-        // Create simulated location with speed
-        const simLoc = {
-          ...lastLocation,
-          coords: {
-            ...lastLocation.coords,
-            speed: currentSpeed / 3.6, // Convert to m/s
-            latitude: lastLocation.coords.latitude + 0.0001 * i,
-            longitude: lastLocation.coords.longitude + 0.0001 * i,
-          },
-          timestamp: Date.now(),
-        };
-
-        setLastLocation(simLoc);
-        addLog(`🏎️ Simulated: ${currentSpeed.toFixed(1)} km/h`);
+      // Simulate driving
+      addLog("🚗 Simulating driving at 25 km/h...");
+      for (let i = 0; i < 10; i++) {
+        const speed = 25 + Math.random() * 5;
+        addLog(`   Speed: ${speed.toFixed(1)} km/h`);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-
-    setSimulatedSpeed(0);
-    addLog("✅ Simulation complete");
-  };
-
-  const handleSimulateStopped = async () => {
-    addLog("🧪 Simulating stopped (< 5 km/h for 30 seconds)...");
-
-    for (let i = 0; i < 30; i++) {
-      const currentSpeed = Math.random() * 3;
-      setSimulatedSpeed(currentSpeed);
-
-      if (lastLocation) {
-        const simLoc = {
-          ...lastLocation,
-          coords: {
-            ...lastLocation.coords,
-            speed: currentSpeed / 3.6,
-          },
-          timestamp: Date.now(),
-        };
-
-        setLastLocation(simLoc);
-        addLog(`🛑 Simulated stopped: ${currentSpeed.toFixed(1)} km/h`);
+      // Simulate stopping
+      setTestStatus("stopping");
+      addLog("🛑 Simulating stop...");
+      for (let i = 0; i < 5; i++) {
+        const speed = Math.random() * 2;
+        addLog(`   Speed: ${speed.toFixed(1)} km/h`);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      setTestStatus("complete");
+      addLog("✅ Test sequence complete!");
+      Alert.alert("Test Complete!", "Check the logs above for details.");
+    } catch (error: any) {
+      addLog(`❌ Error: ${error.message}`);
+      Alert.alert("Test Failed", error.message);
+    } finally {
+      setIsTesting(false);
     }
-
-    setSimulatedSpeed(0);
-    addLog("✅ Stop simulation complete");
   };
 
-  const handleCheckAutoTripStatus = () => {
-    const status = autoTripManager.getStatus();
-    const state = autoTripDetection.getState();
-
-    addLog(`📊 Auto Trip Status:`);
-    addLog(`  - Enabled: ${status.isEnabled}`);
-    addLog(`  - State: ${status.state}`);
-    addLog(`  - Active Trip: ${status.activeTrip ? "Yes" : "No"}`);
-    addLog(`  - Current Trip: ${state.currentTrip ? "Yes" : "No"}`);
-
-    Alert.alert(
-      "Auto Trip Detection Status",
-      `Enabled: ${status.isEnabled}\nState: ${status.state}\nActive Trip: ${status.activeTrip ? "Yes" : "No"}`,
-    );
-  };
-
-  const getStatusColor = (status: Location.PermissionStatus) => {
-    if (status === "granted") return "#34C759";
-    if (status === "denied") return "#FF453A";
-    return "#FF9F0A";
-  };
-
-  const getStatusIcon = (status: Location.PermissionStatus) => {
-    if (status === "granted") return "checkmark-circle";
-    if (status === "denied") return "close-circle";
-    return "help-circle";
-  };
+  const hasPermission = permissionStatus.foreground === "granted";
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
@@ -301,7 +131,7 @@ export default function BackgroundLocationTestScreen() {
               marginBottom: Spacing.xs,
             }}
           >
-            Background Location Test
+            Trip Detection Test
           </Text>
           <Text
             style={{
@@ -309,200 +139,116 @@ export default function BackgroundLocationTestScreen() {
               color: Colors.textSecondary,
             }}
           >
-            Test and debug background tracking
+            Test automatic trip tracking
           </Text>
         </View>
 
-        {/* Permission Status */}
+        {/* Permission Card */}
         <View
           style={{
-            backgroundColor: Colors.surface,
+            backgroundColor: hasPermission ? Colors.success + "10" : Colors.warning + "10",
             borderRadius: BorderRadius.medium,
             padding: Spacing.lg,
             marginBottom: Spacing.lg,
-            ...Shadow.subtle,
+            borderWidth: 2,
+            borderColor: hasPermission ? Colors.success : Colors.warning,
           }}
         >
-          <Text
-            style={{
-              fontSize: Typography.label.fontSize,
-              fontWeight: "600",
-              color: Colors.textPrimary,
-              marginBottom: Spacing.md,
-            }}
-          >
-            Permission Status
-          </Text>
-
-          <View style={{ gap: Spacing.md }}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textPrimary }}>Foreground</Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.xs }}>
-                <Ionicons
-                  name={getStatusIcon(permissionStatus.foreground)}
-                  size={20}
-                  color={getStatusColor(permissionStatus.foreground)}
-                />
-                <Text
-                  style={{
-                    fontSize: Typography.body.fontSize,
-                    color: getStatusColor(permissionStatus.foreground),
-                    fontWeight: "600",
-                  }}
-                >
-                  {permissionStatus.foreground}
-                </Text>
-              </View>
-            </View>
-
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textPrimary }}>Background</Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.xs }}>
-                <Ionicons
-                  name={getStatusIcon(permissionStatus.background)}
-                  size={20}
-                  color={getStatusColor(permissionStatus.background)}
-                />
-                <Text
-                  style={{
-                    fontSize: Typography.body.fontSize,
-                    color: getStatusColor(permissionStatus.background),
-                    fontWeight: "600",
-                  }}
-                >
-                  {permissionStatus.background}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <Pressable
-            onPress={handleRequestPermissions}
-            style={{
-              backgroundColor: Colors.primary + "20",
-              paddingVertical: Spacing.md,
-              borderRadius: BorderRadius.medium,
-              alignItems: "center",
-              marginTop: Spacing.md,
-            }}
-          >
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.sm }}>
+            <Ionicons
+              name={hasPermission ? "checkmark-circle" : "alert-circle"}
+              size={24}
+              color={hasPermission ? Colors.success : Colors.warning}
+              style={{ marginRight: Spacing.sm }}
+            />
             <Text
               style={{
                 fontSize: Typography.body.fontSize,
                 fontWeight: "600",
-                color: Colors.primary,
-              }}
-            >
-              Request Permissions
-            </Text>
-          </Pressable>
-        </View>
-
-        {/* Tracking Status */}
-        <View
-          style={{
-            backgroundColor: isTracking ? "#34C75920" : Colors.surface,
-            borderRadius: BorderRadius.medium,
-            padding: Spacing.lg,
-            marginBottom: Spacing.lg,
-            ...Shadow.subtle,
-            borderWidth: 2,
-            borderColor: isTracking ? "#34C759" : Colors.divider,
-          }}
-        >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: Spacing.md,
-            }}
-          >
-            <Text
-              style={{
-                fontSize: Typography.label.fontSize,
-                fontWeight: "600",
                 color: Colors.textPrimary,
               }}
             >
-              Tracking Status
+              {hasPermission ? "✅ Location Permission Granted" : "⚠️ Location Permission Required"}
             </Text>
-            <View
-              style={{
-                width: 12,
-                height: 12,
-                borderRadius: 6,
-                backgroundColor: isTracking ? "#34C759" : Colors.textTertiary,
-              }}
-            />
           </View>
 
-          <Text
-            style={{
-              fontSize: Typography.h2.fontSize,
-              fontWeight: "700",
-              color: isTracking ? "#34C759" : Colors.textSecondary,
-              marginBottom: Spacing.xs,
-            }}
-          >
-            {isTracking ? "ACTIVE" : "STOPPED"}
-          </Text>
-
-          <Text
-            style={{
-              fontSize: Typography.bodySmall.fontSize,
-              color: Colors.textSecondary,
-              marginBottom: Spacing.md,
-            }}
-          >
-            Locations received: {locationCount}
-          </Text>
-
-          {isTracking ? (
-            <Pressable
-              onPress={handleStopTracking}
-              style={{
-                backgroundColor: "#FF453A",
-                paddingVertical: Spacing.md,
-                borderRadius: BorderRadius.medium,
-                alignItems: "center",
-              }}
-            >
+          {!hasPermission && (
+            <>
               <Text
                 style={{
-                  fontSize: Typography.body.fontSize,
-                  fontWeight: "600",
-                  color: "#FFFFFF",
+                  fontSize: Typography.bodySmall.fontSize,
+                  color: Colors.textSecondary,
+                  marginBottom: Spacing.md,
                 }}
               >
-                Stop Tracking
+                Grant location access to test trip detection
               </Text>
-            </Pressable>
-          ) : (
-            <Pressable
-              onPress={handleStartTracking}
-              style={{
-                backgroundColor: Colors.primary,
-                paddingVertical: Spacing.md,
-                borderRadius: BorderRadius.medium,
-                alignItems: "center",
-              }}
-            >
-              <Text
+              <Pressable
+                onPress={handleRequestPermissions}
                 style={{
-                  fontSize: Typography.body.fontSize,
-                  fontWeight: "600",
-                  color: Colors.textPrimary,
+                  backgroundColor: Colors.primary,
+                  paddingVertical: Spacing.md,
+                  borderRadius: BorderRadius.medium,
+                  alignItems: "center",
                 }}
               >
-                Start Background Tracking
-              </Text>
-            </Pressable>
+                <Text
+                  style={{
+                    fontSize: Typography.body.fontSize,
+                    fontWeight: "600",
+                    color: Colors.textPrimary,
+                  }}
+                >
+                  Grant Permission
+                </Text>
+              </Pressable>
+            </>
           )}
         </View>
 
-        {/* Last Location */}
-        {lastLocation && (
+        {/* Test Button */}
+        {hasPermission && (
+          <Pressable
+            onPress={runFullTest}
+            disabled={isTesting}
+            style={{
+              backgroundColor: isTesting ? Colors.textTertiary : Colors.primary,
+              paddingVertical: Spacing.xl,
+              borderRadius: BorderRadius.medium,
+              alignItems: "center",
+              marginBottom: Spacing.lg,
+              ...Shadow.medium,
+            }}
+          >
+            <Ionicons
+              name={isTesting ? "hourglass-outline" : "play-circle"}
+              size={32}
+              color={Colors.textPrimary}
+              style={{ marginBottom: Spacing.sm }}
+            />
+            <Text
+              style={{
+                fontSize: Typography.h2.fontSize,
+                fontWeight: "600",
+                color: Colors.textPrimary,
+                marginBottom: Spacing.xs,
+              }}
+            >
+              {isTesting ? "Testing..." : "Run Test"}
+            </Text>
+            <Text
+              style={{
+                fontSize: Typography.bodySmall.fontSize,
+                color: Colors.textSecondary,
+              }}
+            >
+              {isTesting ? "Please wait..." : "Test trip detection automatically"}
+            </Text>
+          </Pressable>
+        )}
+
+        {/* Test Status */}
+        {isTesting && (
           <View
             style={{
               backgroundColor: Colors.surface,
@@ -520,310 +266,144 @@ export default function BackgroundLocationTestScreen() {
                 marginBottom: Spacing.md,
               }}
             >
-              Last Location
+              Test Progress
             </Text>
 
-            <View style={{ gap: Spacing.xs }}>
-              <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>
-                Lat: {lastLocation.coords.latitude.toFixed(6)}
-              </Text>
-              <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>
-                Lon: {lastLocation.coords.longitude.toFixed(6)}
-              </Text>
-              <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>
-                Speed: {((lastLocation.coords.speed || 0) * 3.6).toFixed(1)} km/h
-              </Text>
-              <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>
-                Accuracy: {lastLocation.coords.accuracy?.toFixed(1)}m
-              </Text>
-              <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>
-                Time: {new Date(lastLocation.timestamp).toLocaleTimeString()}
-              </Text>
+            <View style={{ gap: Spacing.md }}>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Ionicons
+                  name={testStatus === "driving" || testStatus === "stopping" || testStatus === "complete" ? "checkmark-circle" : "ellipse-outline"}
+                  size={20}
+                  color={testStatus === "driving" || testStatus === "stopping" || testStatus === "complete" ? Colors.success : Colors.textTertiary}
+                  style={{ marginRight: Spacing.sm }}
+                />
+                <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textPrimary }}>
+                  Simulating Driving
+                </Text>
+              </View>
+
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Ionicons
+                  name={testStatus === "stopping" || testStatus === "complete" ? "checkmark-circle" : "ellipse-outline"}
+                  size={20}
+                  color={testStatus === "stopping" || testStatus === "complete" ? Colors.success : Colors.textTertiary}
+                  style={{ marginRight: Spacing.sm }}
+                />
+                <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textPrimary }}>
+                  Simulating Stop
+                </Text>
+              </View>
+
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Ionicons
+                  name={testStatus === "complete" ? "checkmark-circle" : "ellipse-outline"}
+                  size={20}
+                  color={testStatus === "complete" ? Colors.success : Colors.textTertiary}
+                  style={{ marginRight: Spacing.sm }}
+                />
+                <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textPrimary }}>
+                  Complete
+                </Text>
+              </View>
             </View>
           </View>
         )}
 
-        {/* Auto Trip Detection Status */}
-        <View
-          style={{
-            backgroundColor: Colors.surface,
-            borderRadius: BorderRadius.medium,
-            padding: Spacing.lg,
-            marginBottom: Spacing.lg,
-            ...Shadow.subtle,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: Typography.label.fontSize,
-              fontWeight: "600",
-              color: Colors.textPrimary,
-              marginBottom: Spacing.md,
-            }}
-          >
-            Auto Trip Detection
-          </Text>
-
-          <View style={{ gap: Spacing.sm, marginBottom: Spacing.md }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-              <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>Status:</Text>
-              <Text
-                style={{
-                  fontSize: Typography.bodySmall.fontSize,
-                  color: isAutoTripDetectionEnabled ? "#34C759" : Colors.textSecondary,
-                  fontWeight: "600",
-                }}
-              >
-                {isAutoTripDetectionEnabled ? "ENABLED" : "DISABLED"}
-              </Text>
-            </View>
-            <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-              <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>State:</Text>
-              <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textPrimary, fontWeight: "600" }}>
-                {tripDetectionState.toUpperCase()}
-              </Text>
-            </View>
-            {activeAutoTrip && (
-              <>
-                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>
-                    Distance:
-                  </Text>
-                  <Text
-                    style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textPrimary, fontWeight: "600" }}
-                  >
-                    {(activeAutoTrip.distance / 1000).toFixed(2)} km
-                  </Text>
-                </View>
-                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>
-                    Duration:
-                  </Text>
-                  <Text
-                    style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textPrimary, fontWeight: "600" }}
-                  >
-                    {(activeAutoTrip.duration / 60).toFixed(1)} min
-                  </Text>
-                </View>
-              </>
-            )}
-          </View>
-
-          {isAutoTripDetectionEnabled ? (
-            <Pressable
-              onPress={handleStopAutoTripDetection}
-              style={{
-                backgroundColor: "#FF453A",
-                paddingVertical: Spacing.md,
-                borderRadius: BorderRadius.medium,
-                alignItems: "center",
-                marginBottom: Spacing.sm,
-              }}
-            >
-              <Text style={{ fontSize: Typography.body.fontSize, fontWeight: "600", color: "#FFFFFF" }}>
-                Stop Auto Trip Detection
-              </Text>
-            </Pressable>
-          ) : (
-            <Pressable
-              onPress={handleStartAutoTripDetection}
-              style={{
-                backgroundColor: Colors.primary,
-                paddingVertical: Spacing.md,
-                borderRadius: BorderRadius.medium,
-                alignItems: "center",
-                marginBottom: Spacing.sm,
-              }}
-            >
-              <Text style={{ fontSize: Typography.body.fontSize, fontWeight: "600", color: Colors.textPrimary }}>
-                Start Auto Trip Detection
-              </Text>
-            </Pressable>
-          )}
-
-          <Pressable
-            onPress={handleCheckAutoTripStatus}
-            style={{
-              backgroundColor: Colors.primary + "20",
-              paddingVertical: Spacing.md,
-              borderRadius: BorderRadius.medium,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ fontSize: Typography.body.fontSize, fontWeight: "600", color: Colors.primary }}>
-              Check Full Status
-            </Text>
-          </Pressable>
-        </View>
-
-        {/* Simulation Tools */}
-        <View
-          style={{
-            backgroundColor: Colors.surface,
-            borderRadius: BorderRadius.medium,
-            padding: Spacing.lg,
-            marginBottom: Spacing.lg,
-            ...Shadow.subtle,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: Typography.label.fontSize,
-              fontWeight: "600",
-              color: Colors.textPrimary,
-              marginBottom: Spacing.md,
-            }}
-          >
-            🧪 Trip Simulation
-          </Text>
-
-          <View style={{ gap: Spacing.sm }}>
-            <Pressable
-              onPress={handleSimulateDriving}
-              style={{
-                backgroundColor: "#34C759",
-                paddingVertical: Spacing.md,
-                borderRadius: BorderRadius.medium,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ fontSize: Typography.body.fontSize, fontWeight: "600", color: "#FFFFFF" }}>
-                Simulate Driving (20 km/h)
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={handleSimulateStopped}
-              style={{
-                backgroundColor: "#FF9F0A",
-                paddingVertical: Spacing.md,
-                borderRadius: BorderRadius.medium,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ fontSize: Typography.body.fontSize, fontWeight: "600", color: "#FFFFFF" }}>
-                Simulate Stopped (&lt; 5 km/h)
-              </Text>
-            </Pressable>
-          </View>
-
-          <Text
-            style={{
-              fontSize: Typography.bodySmall.fontSize,
-              color: Colors.textSecondary,
-              marginTop: Spacing.md,
-              fontStyle: "italic",
-            }}
-          >
-            Note: These simulate speed values. For real testing, drive or walk outside.
-          </Text>
-        </View>
-
-        {/* Test Actions */}
-        <View style={{ gap: Spacing.md, marginBottom: Spacing.lg }}>
-          <Pressable
-            onPress={handleTestForeground}
-            style={{
-              backgroundColor: Colors.surface,
-              paddingVertical: Spacing.md,
-              borderRadius: BorderRadius.medium,
-              alignItems: "center",
-              ...Shadow.subtle,
-            }}
-          >
-            <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textPrimary }}>
-              Test Foreground Location
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={handleCheckTaskStatus}
-            style={{
-              backgroundColor: Colors.surface,
-              paddingVertical: Spacing.md,
-              borderRadius: BorderRadius.medium,
-              alignItems: "center",
-              ...Shadow.subtle,
-            }}
-          >
-            <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textPrimary }}>Check Task Status</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={checkStatus}
-            style={{
-              backgroundColor: Colors.surface,
-              paddingVertical: Spacing.md,
-              borderRadius: BorderRadius.medium,
-              alignItems: "center",
-              ...Shadow.subtle,
-            }}
-          >
-            <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textPrimary }}>Refresh Status</Text>
-          </Pressable>
-        </View>
-
-        {/* Logs */}
-        <View
-          style={{
-            backgroundColor: "#1C1C1E",
-            borderRadius: BorderRadius.medium,
-            padding: Spacing.lg,
-            marginBottom: Spacing.lg,
-          }}
-        >
+        {/* Active Trip Indicator */}
+        {activeAutoTrip && (
           <View
             style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: Spacing.md,
+              backgroundColor: Colors.success + "20",
+              borderRadius: BorderRadius.medium,
+              padding: Spacing.lg,
+              marginBottom: Spacing.lg,
+              borderWidth: 2,
+              borderColor: Colors.success,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.sm }}>
+              <Ionicons
+                name="car-sport"
+                size={24}
+                color={Colors.success}
+                style={{ marginRight: Spacing.sm }}
+              />
+              <Text
+                style={{
+                  fontSize: Typography.body.fontSize,
+                  fontWeight: "600",
+                  color: Colors.textPrimary,
+                }}
+              >
+                🚗 Trip in Progress
+              </Text>
+            </View>
+            <Text
+              style={{
+                fontSize: Typography.bodySmall.fontSize,
+                color: Colors.textSecondary,
+              }}
+            >
+              Distance: {((activeAutoTrip.distance || 0) / 1000).toFixed(2)} km
+              {"\n"}
+              Duration: {Math.floor((activeAutoTrip.duration || 0) / 60)} min
+            </Text>
+          </View>
+        )}
+
+        {/* Logs */}
+        {logs.length > 0 && (
+          <View
+            style={{
+              backgroundColor: Colors.surface,
+              borderRadius: BorderRadius.medium,
+              padding: Spacing.lg,
+              marginBottom: Spacing.lg,
+              ...Shadow.subtle,
             }}
           >
             <Text
               style={{
                 fontSize: Typography.label.fontSize,
                 fontWeight: "600",
-                color: "#FFFFFF",
+                color: Colors.textPrimary,
+                marginBottom: Spacing.md,
               }}
             >
-              Event Log ({logs.length})
+              Test Logs
             </Text>
-            <Pressable onPress={clearLogs}>
-              <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.primary }}>Clear</Text>
-            </Pressable>
-          </View>
-
-          <ScrollView style={{ maxHeight: 300 }} nestedScrollEnabled>
-            {logs.length === 0 ? (
-              <Text style={{ fontSize: Typography.bodySmall.fontSize, color: "#8E8E93", fontStyle: "italic" }}>
-                No events yet...
-              </Text>
-            ) : (
-              logs.map((log, index) => (
+            <View
+              style={{
+                backgroundColor: Colors.background,
+                borderRadius: BorderRadius.small,
+                padding: Spacing.md,
+                maxHeight: 300,
+              }}
+            >
+              {logs.map((log, index) => (
                 <Text
                   key={index}
                   style={{
-                    fontSize: Typography.bodySmall.fontSize,
-                    color: "#FFFFFF",
-                    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-                    marginBottom: Spacing.xs,
+                    fontSize: Typography.caption.fontSize,
+                    color: Colors.textSecondary,
+                    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+                    marginBottom: 4,
                   }}
                 >
                   {log}
                 </Text>
-              ))
-            )}
-          </ScrollView>
-        </View>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* Instructions */}
         <View
           style={{
-            backgroundColor: Colors.primary + "20",
+            backgroundColor: Colors.primary + "10",
             borderRadius: BorderRadius.medium,
             padding: Spacing.lg,
-            marginBottom: Spacing.xl,
+            marginBottom: Spacing.xxl,
           }}
         >
           <Text
@@ -834,7 +414,7 @@ export default function BackgroundLocationTestScreen() {
               marginBottom: Spacing.sm,
             }}
           >
-            📱 Testing Instructions
+            📖 How It Works
           </Text>
           <Text
             style={{
@@ -843,20 +423,11 @@ export default function BackgroundLocationTestScreen() {
               lineHeight: 20,
             }}
           >
-            📍 BACKGROUND LOCATION TEST:{"\n"}
-            1. Grant all permissions{"\n"}
-            2. Start background tracking{"\n"}
-            3. Minimize app → check notification{"\n"}
-            4. Walk/drive → check location count{"\n"}
-            {"\n"}
-            🚗 AUTO TRIP DETECTION TEST:{"\n"}
-            1. Start Auto Trip Detection{"\n"}
-            2. Drive at 15+ km/h for 10+ seconds{"\n"}
-            3. Watch state change to "DRIVING"{"\n"}
-            4. Stop for 2+ minutes{"\n"}
-            5. Trip should save automatically{"\n"}
-            {"\n"}
-            🧪 Or use "Simulate" buttons for quick testing
+            1. Grant location permission{"\n"}
+            2. Tap "Run Test" button{"\n"}
+            3. Watch the test simulate driving and stopping{"\n"}
+            4. Check the logs for detailed information{"\n\n"}
+            The test will automatically detect trip start and end!
           </Text>
         </View>
       </ScrollView>
@@ -866,10 +437,9 @@ export default function BackgroundLocationTestScreen() {
         onClose={() => setShowPermissionModal(false)}
         onPermissionGranted={() => {
           setShowPermissionModal(false);
-          checkStatus();
-          addLog("✅ Permissions granted");
+          checkPermissions();
         }}
-        requireBackground={true}
+        requireBackground={false}
       />
     </SafeAreaView>
   );
