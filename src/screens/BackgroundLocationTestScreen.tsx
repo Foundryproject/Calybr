@@ -62,6 +62,10 @@ export default function BackgroundLocationTestScreen() {
       
       addLog(`🏁 Trip Ended! ${distance}km in ${duration}min`);
       
+      // Get start and end coordinates
+      const startCoords = trip.path && trip.path.length > 0 ? trip.path[0] : null;
+      const endCoords = trip.path && trip.path.length > 0 ? trip.path[trip.path.length - 1] : null;
+      
       // Store trip summary
       setTripSummary({
         distance: distance,
@@ -70,6 +74,8 @@ export default function BackgroundLocationTestScreen() {
         maxSpeed: trip.maxSpeed?.toFixed(1) || "0",
         startTime: new Date(trip.startTime).toLocaleTimeString(),
         endTime: new Date(trip.endTime || Date.now()).toLocaleTimeString(),
+        startLocation: startCoords ? `${startCoords.latitude.toFixed(4)}, ${startCoords.longitude.toFixed(4)}` : "Unknown",
+        endLocation: endCoords ? `${endCoords.latitude.toFixed(4)}, ${endCoords.longitude.toFixed(4)}` : "Unknown",
       });
       
       setTestStatus("complete");
@@ -129,7 +135,7 @@ export default function BackgroundLocationTestScreen() {
       setTestStatus("complete");
       addLog("✅ Simulation complete!");
       
-      // Create mock summary
+      // Create mock summary with actual location
       setTripSummary({
         distance: "2.5",
         duration: "5.2",
@@ -137,6 +143,8 @@ export default function BackgroundLocationTestScreen() {
         maxSpeed: "35.0",
         startTime: new Date(Date.now() - 312000).toLocaleTimeString(),
         endTime: new Date().toLocaleTimeString(),
+        startLocation: `${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)}`,
+        endLocation: `${(location.coords.latitude + 0.01).toFixed(4)}, ${(location.coords.longitude + 0.01).toFixed(4)}`,
       });
       
       Alert.alert("Test Complete!", "Check the summary below!");
@@ -571,13 +579,44 @@ export default function BackgroundLocationTestScreen() {
 
               <View style={{ height: 1, backgroundColor: Colors.divider, marginVertical: Spacing.sm }} />
 
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>
-                  Start: {tripSummary.startTime}
-                </Text>
-                <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>
-                  End: {tripSummary.endTime}
-                </Text>
+              <View style={{ gap: Spacing.sm }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>
+                    🕐 Start
+                  </Text>
+                  <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>
+                    {tripSummary.startTime}
+                  </Text>
+                </View>
+                
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>
+                    🕐 End
+                  </Text>
+                  <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>
+                    {tripSummary.endTime}
+                  </Text>
+                </View>
+
+                <View style={{ height: 1, backgroundColor: Colors.divider, marginVertical: Spacing.xs }} />
+
+                <View>
+                  <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary, marginBottom: 4 }}>
+                    📍 Start Location
+                  </Text>
+                  <Text style={{ fontSize: Typography.caption.fontSize, color: Colors.textTertiary, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}>
+                    {tripSummary.startLocation}
+                  </Text>
+                </View>
+
+                <View>
+                  <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary, marginBottom: 4 }}>
+                    🏁 End Location
+                  </Text>
+                  <Text style={{ fontSize: Typography.caption.fontSize, color: Colors.textTertiary, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}>
+                    {tripSummary.endLocation}
+                  </Text>
+                </View>
               </View>
             </View>
           </View>
