@@ -4,7 +4,7 @@
   "main": "index.ts",
   "scripts": {
     "prepare": "husky",
-    "start": "expo start --go",
+    "start": "expo start",
     "web": "expo start --web",
     "lint": "eslint .",
     "format": "prettier -w .",

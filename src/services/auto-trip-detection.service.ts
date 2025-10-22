@@ -53,7 +53,14 @@ type TripState = "idle" | "detecting" | "driving" | "stopped";
 class AutoTripDetectionService {
   private isEnabled = false;
   private state: TripState = "idle";
-  private config: Required<TripDetectionConfig> = THRESHOLDS;
+  private config: Required<TripDetectionConfig> = {
+    startSpeedKmh: THRESHOLDS.START_SPEED_KMH,
+    startDurationMs: THRESHOLDS.START_DURATION_MS,
+    stopSpeedKmh: THRESHOLDS.STOP_SPEED_KMH,
+    stopDurationMs: THRESHOLDS.STOP_DURATION_MS,
+    minTripDistanceM: THRESHOLDS.MIN_TRIP_DISTANCE_M,
+    minTripDurationS: THRESHOLDS.MIN_TRIP_DURATION_S,
+  };
 
   // Detection state
   private lastSpeed = 0;

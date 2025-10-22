@@ -140,9 +140,9 @@ class AutoTripManager {
         // Add to local trips list
         useDriveStore.getState().addTrip({
           id: savedTrip.id,
-          date: new Date(savedTrip.started_at),
-          startTime: new Date(savedTrip.started_at).toLocaleTimeString(),
-          endTime: new Date(savedTrip.ended_at).toLocaleTimeString(),
+          date: new Date(savedTrip.start_time),
+          startTime: new Date(savedTrip.start_time).toLocaleTimeString(),
+          endTime: new Date(savedTrip.end_time).toLocaleTimeString(),
           duration: Math.round(savedTrip.duration_s / 60), // seconds to minutes
           distance: savedTrip.distance_km,
           score: savedTrip.score || 0,
@@ -150,6 +150,7 @@ class AutoTripManager {
           startAddress: "Auto-detected trip",
           endAddress: "Auto-detected trip",
           route: savedTrip.route,
+          events: [], // Empty events array for auto-detected trips
         });
 
         console.log("✅ Trip saved successfully:", savedTrip.id);

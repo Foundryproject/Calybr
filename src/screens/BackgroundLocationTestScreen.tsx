@@ -8,11 +8,13 @@ import React, { useState, useEffect } from "react";
 import { View, Text, ScrollView, Pressable, Alert, Platform, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from "../utils/theme";
 import { backgroundLocationService } from "../services/background-location.service";
-import { autoTripDetection } from "../services/auto-trip-detection.service";
+import { autoTripDetection, DetectedTrip } from "../services/auto-trip-detection.service";
 import { autoTripManager } from "../services/auto-trip-manager";
+import { tripDatabase } from "../services/trip-database.service";
 import { useUser, useActiveAutoTrip } from "../state/driveStore";
 import LocationPermissionModal from "../components/LocationPermissionModal";
 
@@ -31,6 +33,15 @@ export default function BackgroundLocationTestScreen() {
   const [testMode, setTestMode] = useState<"simulation" | "real" | null>(null);
   const [isRealDriveActive, setIsRealDriveActive] = useState(false);
   const [tripSummary, setTripSummary] = useState<any>(null);
+  const [tripRoute, setTripRoute] = useState<
+    | {
+        latitude: number;
+        longitude: number;
+        timestamp: number;
+        speed: number;
+      }[]
+    | null
+  >(null);
 
   useEffect(() => {
     checkPermissions();
@@ -40,6 +51,52 @@ export default function BackgroundLocationTestScreen() {
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
     setLogs((prev) => [`[${timestamp}] ${message}`, ...prev].slice(0, 20));
+  };
+
+  /**
+   * Generate a realistic route with turns, curves, and movements
+   */
+  const generateRealisticRoute = (
+    startLat: number,
+    startLon: number,
+    endLat: number,
+    endLon: number,
+    numPoints: number = 30,
+  ) => {
+    const route = [];
+    const totalDistance = Math.sqrt(Math.pow(endLat - startLat, 2) + Math.pow(endLon - startLon, 2));
+
+    // Create a curved path with realistic turns
+    for (let i = 0; i <= numPoints; i++) {
+      const progress = i / numPoints;
+
+      // Add sine wave for bobs and weaves
+      const weaveOffset = Math.sin(progress * Math.PI * 2) * 0.001;
+
+      // Add curves/turns - use a quadratic Bézier curve approach
+      const curvedProgress = progress * progress * (3 - 2 * progress); // Smooth S-curve
+
+      // Add random turns every few points
+      const turnOffset = Math.sin(i * 0.5) * 0.0005;
+
+      // Calculate interpolated position with curves
+      const lat = startLat + (endLat - startLat) * curvedProgress + weaveOffset + turnOffset;
+      const lon = startLon + (endLon - startLon) * curvedProgress + Math.cos(progress * Math.PI * 2) * 0.0008;
+
+      // Speed variation - slower on turns, faster on straights
+      const speedVariation = Math.abs(Math.sin(progress * Math.PI * 3)) * 15;
+      const baseSpeed = 25;
+      const speed = baseSpeed + speedVariation + Math.random() * 5;
+
+      route.push({
+        latitude: lat,
+        longitude: lon,
+        timestamp: Date.now() - (312000 - i * (312000 / numPoints)),
+        speed: Math.max(15, Math.min(50, speed)), // Keep speed realistic (15-50 km/h)
+      });
+    }
+
+    return route;
   };
 
   const checkPermissions = async () => {
@@ -60,13 +117,13 @@ export default function BackgroundLocationTestScreen() {
       const distance = (trip.distance / 1000).toFixed(2);
       const duration = (trip.duration / 60).toFixed(1);
       const avgSpeed = trip.averageSpeed?.toFixed(1) || "0";
-      
+
       addLog(`🏁 Trip Ended! ${distance}km in ${duration}min`);
-      
+
       // Get start and end coordinates
-      const startCoords = trip.path && trip.path.length > 0 ? trip.path[0] : null;
-      const endCoords = trip.path && trip.path.length > 0 ? trip.path[trip.path.length - 1] : null;
-      
+      const startCoords = trip.route && trip.route.length > 0 ? trip.route[0] : null;
+      const endCoords = trip.route && trip.route.length > 0 ? trip.route[trip.route.length - 1] : null;
+
       // Store trip summary
       setTripSummary({
         distance: distance,
@@ -75,10 +132,18 @@ export default function BackgroundLocationTestScreen() {
         maxSpeed: trip.maxSpeed?.toFixed(1) || "0",
         startTime: new Date(trip.startTime).toLocaleTimeString(),
         endTime: new Date(trip.endTime || Date.now()).toLocaleTimeString(),
-        startLocation: startCoords ? `${startCoords.latitude.toFixed(4)}, ${startCoords.longitude.toFixed(4)}` : "Unknown",
+        startLocation: startCoords
+          ? `${startCoords.latitude.toFixed(4)}, ${startCoords.longitude.toFixed(4)}`
+          : "Unknown",
         endLocation: endCoords ? `${endCoords.latitude.toFixed(4)}, ${endCoords.longitude.toFixed(4)}` : "Unknown",
       });
-      
+
+      // Store route data for map visualization
+      setTripRoute(trip.route || []);
+
+      // Note: Trip is automatically saved to Supabase by autoTripManager
+      addLog("💾 Trip automatically saved to Supabase");
+
       setTestStatus("complete");
       setIsTesting(false);
       setIsRealDriveActive(false);
@@ -106,6 +171,7 @@ export default function BackgroundLocationTestScreen() {
     setTestStatus("driving");
     setLogs([]);
     setTripSummary(null);
+    setTripRoute(null);
     addLog("🧪 Starting simulation test...");
 
     try {
@@ -135,19 +201,64 @@ export default function BackgroundLocationTestScreen() {
 
       setTestStatus("complete");
       addLog("✅ Simulation complete!");
-      
+
+      // Create realistic route with turns and curves
+      const startLat = location.coords.latitude;
+      const startLon = location.coords.longitude;
+      const endLat = startLat + 0.015; // Slightly further for better visualization
+      const endLon = startLon + 0.015;
+
+      // Generate realistic route with 40 points (more points = smoother curves)
+      const mockRoute = generateRealisticRoute(startLat, startLon, endLat, endLon, 40);
+
+      // Calculate summary metrics from the generated route
+      const maxSpeed = Math.max(...mockRoute.map((p) => p.speed));
+      const avgSpeed = mockRoute.reduce((sum, p) => sum + p.speed, 0) / mockRoute.length;
+
       // Create mock summary with actual location
       setTripSummary({
         distance: "2.5",
         duration: "5.2",
-        averageSpeed: "28.8",
-        maxSpeed: "35.0",
+        averageSpeed: avgSpeed.toFixed(1),
+        maxSpeed: maxSpeed.toFixed(1),
         startTime: new Date(Date.now() - 312000).toLocaleTimeString(),
         endTime: new Date().toLocaleTimeString(),
-        startLocation: `${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)}`,
-        endLocation: `${(location.coords.latitude + 0.01).toFixed(4)}, ${(location.coords.longitude + 0.01).toFixed(4)}`,
+        startLocation: `${startLat.toFixed(4)}, ${startLon.toFixed(4)}`,
+        endLocation: `${endLat.toFixed(4)}, ${endLon.toFixed(4)}`,
       });
-      
+
+      // Store mock route data for map visualization
+      setTripRoute(mockRoute);
+
+      // Save trip to Supabase only if user ID is a valid UUID
+      // Skip if using mock authentication
+      if (user?.id && !user.id.startsWith("mock_user_")) {
+        try {
+          const mockTrip: DetectedTrip = {
+            id: `simulation-${Date.now()}`,
+            startTime: new Date(Date.now() - 312000),
+            endTime: new Date(),
+            distance: 2500, // 2.5 km in meters
+            duration: 312, // 5.2 minutes in seconds
+            maxSpeed: maxSpeed,
+            averageSpeed: avgSpeed,
+            route: mockRoute,
+            events: [],
+          };
+
+          const savedTrip = await tripDatabase.saveTrip(mockTrip, user.id);
+          if (savedTrip) {
+            addLog(`✅ Trip saved to Supabase: ${savedTrip.id}`);
+          } else {
+            addLog("⚠️ Failed to save trip to Supabase");
+          }
+        } catch (error: any) {
+          addLog(`❌ Error saving trip: ${error.message}`);
+        }
+      } else if (user?.id?.startsWith("mock_user_")) {
+        addLog("ℹ️ Skipping Supabase save (mock user)");
+      }
+
       Alert.alert("Test Complete!", "Check the summary below!");
     } catch (error: any) {
       addLog(`❌ Error: ${error.message}`);
@@ -173,23 +284,24 @@ export default function BackgroundLocationTestScreen() {
     setTestMode("real");
     setLogs([]);
     setTripSummary(null);
+    setTripRoute(null);
     addLog("🚗 Real drive mode activated!");
     addLog("📍 Waiting for you to start driving...");
     addLog("💡 Drive at 15+ km/h for 10 seconds to start trip");
-    
+
     // Start auto trip detection
     try {
       const success = await autoTripManager.start(user.id);
       if (!success) {
         throw new Error("Failed to start trip detection");
       }
-      
+
       setIsRealDriveActive(true);
       addLog("✅ Auto trip detection started");
       Alert.alert(
         "Ready to Drive! 🚗",
         "Drive at 15+ km/h for 10 seconds to automatically start trip tracking.\n\nStop for 2+ minutes to end the trip.",
-        [{ text: "Got it!" }]
+        [{ text: "Got it!" }],
       );
     } catch (error: any) {
       addLog(`❌ Error: ${error.message}`);
@@ -200,11 +312,71 @@ export default function BackgroundLocationTestScreen() {
 
   const stopRealDrive = async () => {
     try {
+      // Check if there's an active trip
+      const currentTrip = autoTripDetection.getState().currentTrip;
+
+      if (currentTrip && currentTrip.route && currentTrip.route.length > 0) {
+        // Create a summary for the current trip
+        const distance = (currentTrip.distance / 1000).toFixed(2);
+        const duration = (currentTrip.duration / 60).toFixed(1);
+        const avgSpeed = currentTrip.averageSpeed?.toFixed(1) || "0";
+
+        const startCoords = currentTrip.route[0];
+        const endCoords = currentTrip.route[currentTrip.route.length - 1];
+
+        setTripSummary({
+          distance: distance,
+          duration: duration,
+          averageSpeed: avgSpeed,
+          maxSpeed: currentTrip.maxSpeed?.toFixed(1) || "0",
+          startTime: new Date(currentTrip.startTime).toLocaleTimeString(),
+          endTime: new Date().toLocaleTimeString(),
+          startLocation: `${startCoords.latitude.toFixed(4)}, ${startCoords.longitude.toFixed(4)}`,
+          endLocation: `${endCoords.latitude.toFixed(4)}, ${endCoords.longitude.toFixed(4)}`,
+        });
+
+        // Store route data for map visualization
+        setTripRoute(currentTrip.route);
+
+        addLog(`🏁 Trip completed: ${distance}km in ${duration}min`);
+
+        // Save trip to Supabase only if user ID is a valid UUID
+        // Skip if using mock authentication
+        if (user?.id && !user.id.startsWith("mock_user_")) {
+          try {
+            // Ensure trip has endTime
+            const tripToSave: DetectedTrip = {
+              ...currentTrip,
+              endTime: currentTrip.endTime || new Date(),
+            };
+
+            const savedTrip = await tripDatabase.saveTrip(tripToSave, user.id);
+            if (savedTrip) {
+              addLog(`✅ Trip saved to Supabase: ${savedTrip.id}`);
+            } else {
+              addLog("⚠️ Failed to save trip to Supabase");
+            }
+          } catch (error: any) {
+            addLog(`❌ Error saving trip: ${error.message}`);
+          }
+        } else if (user?.id?.startsWith("mock_user_")) {
+          addLog("ℹ️ Skipping Supabase save (mock user)");
+        }
+      }
+
       await autoTripManager.stop();
       setIsRealDriveActive(false);
       setTestMode(null);
       addLog("🛑 Real drive mode deactivated");
-      Alert.alert("Drive Mode Stopped", "Auto trip detection has been stopped. You can start a new test anytime.");
+
+      if (currentTrip && currentTrip.route && currentTrip.route.length > 0) {
+        Alert.alert(
+          "Trip Complete!",
+          `Captured trip with ${currentTrip.route.length} location points. Check the summary below!`,
+        );
+      } else {
+        Alert.alert("Drive Mode Stopped", "Auto trip detection has been stopped. You can start a new test anytime.");
+      }
     } catch (error: any) {
       addLog(`⚠️ Error stopping: ${error.message}`);
       setIsRealDriveActive(false);
@@ -357,12 +529,7 @@ export default function BackgroundLocationTestScreen() {
                 ...Shadow.medium,
               }}
             >
-              <Ionicons
-                name="car-sport"
-                size={32}
-                color="#FFFFFF"
-                style={{ marginBottom: Spacing.sm }}
-              />
+              <Ionicons name="car-sport" size={32} color="#FFFFFF" style={{ marginBottom: Spacing.sm }} />
               <Text
                 style={{
                   fontSize: Typography.h3.fontSize,
@@ -399,12 +566,7 @@ export default function BackgroundLocationTestScreen() {
               ...Shadow.medium,
             }}
           >
-            <Ionicons
-              name="stop-circle"
-              size={32}
-              color="#FFFFFF"
-              style={{ marginBottom: Spacing.sm }}
-            />
+            <Ionicons name="stop-circle" size={32} color="#FFFFFF" style={{ marginBottom: Spacing.sm }} />
             <Text
               style={{
                 fontSize: Typography.h2.fontSize,
@@ -452,9 +614,17 @@ export default function BackgroundLocationTestScreen() {
             <View style={{ gap: Spacing.md }}>
               <View style={{ flexDirection: "row", alignItems: "center" }}>
                 <Ionicons
-                  name={testStatus === "driving" || testStatus === "stopping" || testStatus === "complete" ? "checkmark-circle" : "ellipse-outline"}
+                  name={
+                    testStatus === "driving" || testStatus === "stopping" || testStatus === "complete"
+                      ? "checkmark-circle"
+                      : "ellipse-outline"
+                  }
                   size={20}
-                  color={testStatus === "driving" || testStatus === "stopping" || testStatus === "complete" ? Colors.success : Colors.textTertiary}
+                  color={
+                    testStatus === "driving" || testStatus === "stopping" || testStatus === "complete"
+                      ? Colors.success
+                      : Colors.textTertiary
+                  }
                   style={{ marginRight: Spacing.sm }}
                 />
                 <Text style={{ flex: 1, fontSize: Typography.body.fontSize, color: Colors.textPrimary }}>
@@ -481,9 +651,7 @@ export default function BackgroundLocationTestScreen() {
                   color={testStatus === "complete" ? Colors.success : Colors.textTertiary}
                   style={{ marginRight: Spacing.sm }}
                 />
-                <Text style={{ flex: 1, fontSize: Typography.body.fontSize, color: Colors.textPrimary }}>
-                  Complete
-                </Text>
+                <Text style={{ flex: 1, fontSize: Typography.body.fontSize, color: Colors.textPrimary }}>Complete</Text>
               </View>
             </View>
           </View>
@@ -502,12 +670,7 @@ export default function BackgroundLocationTestScreen() {
             }}
           >
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.sm }}>
-              <Ionicons
-                name="car-sport"
-                size={24}
-                color={Colors.success}
-                style={{ marginRight: Spacing.sm }}
-              />
+              <Ionicons name="car-sport" size={24} color={Colors.success} style={{ marginRight: Spacing.sm }} />
               <Text
                 style={{
                   flex: 1,
@@ -561,36 +724,28 @@ export default function BackgroundLocationTestScreen() {
 
             <View style={{ gap: Spacing.md }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textSecondary }}>
-                  📏 Distance
-                </Text>
+                <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textSecondary }}>📏 Distance</Text>
                 <Text style={{ fontSize: Typography.h3.fontSize, fontWeight: "600", color: Colors.textPrimary }}>
                   {tripSummary.distance} km
                 </Text>
               </View>
 
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textSecondary }}>
-                  ⏱️ Duration
-                </Text>
+                <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textSecondary }}>⏱️ Duration</Text>
                 <Text style={{ fontSize: Typography.h3.fontSize, fontWeight: "600", color: Colors.textPrimary }}>
                   {tripSummary.duration} min
                 </Text>
               </View>
 
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textSecondary }}>
-                  🚗 Avg Speed
-                </Text>
+                <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textSecondary }}>🚗 Avg Speed</Text>
                 <Text style={{ fontSize: Typography.h3.fontSize, fontWeight: "600", color: Colors.textPrimary }}>
                   {tripSummary.averageSpeed} km/h
                 </Text>
               </View>
 
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textSecondary }}>
-                  ⚡ Max Speed
-                </Text>
+                <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textSecondary }}>⚡ Max Speed</Text>
                 <Text style={{ fontSize: Typography.h3.fontSize, fontWeight: "600", color: Colors.textPrimary }}>
                   {tripSummary.maxSpeed} km/h
                 </Text>
@@ -600,18 +755,14 @@ export default function BackgroundLocationTestScreen() {
 
               <View style={{ gap: Spacing.sm }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                  <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>
-                    🕐 Start
-                  </Text>
+                  <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>🕐 Start</Text>
                   <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>
                     {tripSummary.startTime}
                   </Text>
                 </View>
-                
+
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                  <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>
-                    🕐 End
-                  </Text>
+                  <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>🕐 End</Text>
                   <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary }}>
                     {tripSummary.endTime}
                   </Text>
@@ -620,24 +771,153 @@ export default function BackgroundLocationTestScreen() {
                 <View style={{ height: 1, backgroundColor: Colors.divider, marginVertical: Spacing.xs }} />
 
                 <View>
-                  <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary, marginBottom: 4 }}>
+                  <Text
+                    style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary, marginBottom: 4 }}
+                  >
                     📍 Start Location
                   </Text>
-                  <Text style={{ fontSize: Typography.caption.fontSize, color: Colors.textTertiary, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}>
+                  <Text
+                    style={{
+                      fontSize: Typography.caption.fontSize,
+                      color: Colors.textTertiary,
+                      fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+                    }}
+                  >
                     {tripSummary.startLocation}
                   </Text>
                 </View>
 
                 <View>
-                  <Text style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary, marginBottom: 4 }}>
+                  <Text
+                    style={{ fontSize: Typography.bodySmall.fontSize, color: Colors.textSecondary, marginBottom: 4 }}
+                  >
                     🏁 End Location
                   </Text>
-                  <Text style={{ fontSize: Typography.caption.fontSize, color: Colors.textTertiary, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}>
+                  <Text
+                    style={{
+                      fontSize: Typography.caption.fontSize,
+                      color: Colors.textTertiary,
+                      fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+                    }}
+                  >
                     {tripSummary.endLocation}
                   </Text>
                 </View>
               </View>
             </View>
+          </View>
+        )}
+
+        {/* Trip Route Map */}
+        {tripRoute && tripRoute.length > 0 && (
+          <View
+            style={{
+              backgroundColor: Colors.surface,
+              borderRadius: BorderRadius.medium,
+              padding: Spacing.lg,
+              marginBottom: Spacing.lg,
+              ...Shadow.medium,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: Typography.h3.fontSize,
+                fontWeight: "600",
+                color: Colors.textPrimary,
+                marginBottom: Spacing.md,
+                textAlign: "center",
+              }}
+            >
+              🗺️ Trip Route
+            </Text>
+
+            <View style={{ height: 250, borderRadius: BorderRadius.small, overflow: "hidden" }}>
+              <MapView
+                style={{ flex: 1 }}
+                provider={PROVIDER_GOOGLE}
+                initialRegion={{
+                  latitude: tripRoute[0].latitude,
+                  longitude: tripRoute[0].longitude,
+                  latitudeDelta: 0.01,
+                  longitudeDelta: 0.01,
+                }}
+                scrollEnabled={true}
+                zoomEnabled={true}
+                pitchEnabled={false}
+                rotateEnabled={false}
+              >
+                {/* Trip Route Polyline */}
+                <Polyline
+                  coordinates={tripRoute.map((point) => ({
+                    latitude: point.latitude,
+                    longitude: point.longitude,
+                  }))}
+                  strokeColor={Colors.success}
+                  strokeWidth={4}
+                />
+
+                {/* Start Marker */}
+                <Marker
+                  coordinate={{
+                    latitude: tripRoute[0].latitude,
+                    longitude: tripRoute[0].longitude,
+                  }}
+                  title="Trip Start"
+                  description={`Started at ${new Date(tripRoute[0].timestamp).toLocaleTimeString()}`}
+                >
+                  <View
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: 15,
+                      backgroundColor: Colors.success,
+                      justifyContent: "center",
+                      alignItems: "center",
+                      borderWidth: 3,
+                      borderColor: "#FFFFFF",
+                    }}
+                  >
+                    <Ionicons name="play" size={16} color="#FFFFFF" />
+                  </View>
+                </Marker>
+
+                {/* End Marker */}
+                <Marker
+                  coordinate={{
+                    latitude: tripRoute[tripRoute.length - 1].latitude,
+                    longitude: tripRoute[tripRoute.length - 1].longitude,
+                  }}
+                  title="Trip End"
+                  description={`Ended at ${new Date(tripRoute[tripRoute.length - 1].timestamp).toLocaleTimeString()}`}
+                >
+                  <View
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: 15,
+                      backgroundColor: Colors.error,
+                      justifyContent: "center",
+                      alignItems: "center",
+                      borderWidth: 3,
+                      borderColor: "#FFFFFF",
+                    }}
+                  >
+                    <Ionicons name="stop" size={16} color="#FFFFFF" />
+                  </View>
+                </Marker>
+              </MapView>
+            </View>
+
+            <Text
+              style={{
+                fontSize: Typography.caption.fontSize,
+                color: Colors.textSecondary,
+                textAlign: "center",
+                marginTop: Spacing.sm,
+              }}
+            >
+              Green line shows your route • {tripRoute.length} location points recorded
+            </Text>
           </View>
         )}
 

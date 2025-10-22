@@ -1,6 +1,6 @@
-import 'react-native-url-polyfill/auto';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import "react-native-url-polyfill/auto";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 // Supabase configuration
 // IMPORTANT: Add your Supabase credentials to .env file:
@@ -8,17 +8,19 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 // EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 // Get them from: https://app.supabase.com/project/_/settings/api
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+// Support both EXPO_PUBLIC_ prefix and direct env vars
+// Trim whitespace to handle .env formatting issues
+const supabaseUrl = (process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "").trim();
+const supabaseAnonKey = (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "").trim();
 
 // Debug logging
-console.log('Supabase URL loaded:', supabaseUrl ? 'YES' : 'NO');
-console.log('Supabase Key loaded:', supabaseAnonKey ? 'YES' : 'NO');
+console.log("Supabase URL loaded:", supabaseUrl ? "YES" : "NO");
+console.log("Supabase Key loaded:", supabaseAnonKey ? "YES" : "NO");
 
 // Create a placeholder client that will work without configuration
 const createSupabaseClient = () => {
-  if (supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('http')) {
-    console.log('✅ Creating Supabase client');
+  if (supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith("http")) {
+    console.log("✅ Creating Supabase client");
     return createClient<Database>(supabaseUrl, supabaseAnonKey, {
       auth: {
         storage: AsyncStorage,
@@ -28,7 +30,7 @@ const createSupabaseClient = () => {
       },
     });
   }
-  console.log('❌ Supabase not configured - missing URL or Key');
+  console.log("❌ Supabase not configured - missing URL or Key");
   return null;
 };
 
@@ -36,7 +38,7 @@ export const supabase = createSupabaseClient();
 export type SupabaseClientType = typeof supabase;
 
 export const isSupabaseConfigured = (): boolean => {
-  return !!(supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('http'));
+  return !!(supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith("http"));
 };
 
 // Database Types

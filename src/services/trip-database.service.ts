@@ -10,8 +10,8 @@ import { DetectedTrip } from "./auto-trip-detection.service";
 export interface SavedTrip {
   id: string;
   user_id: string;
-  started_at: string;
-  ended_at: string;
+  start_time: string;
+  end_time: string;
   distance_km: number;
   duration_s: number;
   max_speed_kmh: number;
@@ -32,35 +32,41 @@ class TripDatabaseService {
     }
 
     try {
-      const tripData: Omit<SavedTrip, "id" | "created_at"> = {
+      const tripData = {
         user_id: userId,
-        started_at: trip.startTime.toISOString(),
-        ended_at: trip.endTime ? trip.endTime.toISOString() : new Date().toISOString(),
-        distance_km: trip.distance / 1000, // meters to km
-        duration_s: Math.round(trip.duration),
-        max_speed_kmh: Math.round(trip.maxSpeed),
-        avg_speed_kmh: Math.round(trip.averageSpeed),
-        route: {
-          points: trip.route.map((p) => ({
-            lat: p.latitude,
-            lon: p.longitude,
-            ts: p.timestamp,
-            speed: Math.round(p.speed * 10) / 10, // Round to 1 decimal
-          })),
-          totalPoints: trip.route.length,
-        },
+        date: trip.startTime.toISOString().split("T")[0], // Date only
+        start_time: trip.startTime.toISOString(),
+        end_time: trip.endTime ? trip.endTime.toISOString() : new Date().toISOString(),
+        duration: Math.round(trip.duration), // Duration in seconds
+        distance: trip.distance / 1000, // Distance in km
         score: this.calculateBasicScore(trip),
+        estimated_cost: (trip.distance / 1000) * 0.5, // Simple cost calculation
+        start_address: "Auto-detected trip",
+        end_address: "Auto-detected trip",
+        route: trip.route.map((p) => ({
+          latitude: p.latitude,
+          longitude: p.longitude,
+        })),
       };
 
-      const { data, error } = await supabase.from("trip").insert(tripData).select().single();
+      const { data, error } = await supabase
+        .from("trips")
+        .insert(tripData as any)
+        .select()
+        .single();
 
       if (error) {
         console.error("Error saving trip to database:", error);
         return null;
       }
 
-      console.log("✅ Trip saved to database:", data.id);
-      return data;
+      if (!data) {
+        console.error("No data returned from insert");
+        return null;
+      }
+
+      console.log("✅ Trip saved to database:", (data as any).id);
+      return data as any;
     } catch (error) {
       console.error("Failed to save trip:", error);
       return null;
@@ -78,11 +84,11 @@ class TripDatabaseService {
 
     try {
       const { data, error } = await supabase
-        .from("trip")
+        .from("trips")
         .select("*")
         .eq("user_id", userId)
         .eq("status", "closed")
-        .order("started_at", { ascending: false })
+        .order("start_time", { ascending: false })
         .limit(limit);
 
       if (error) {
@@ -106,7 +112,7 @@ class TripDatabaseService {
     }
 
     try {
-      const { data, error } = await supabase.from("trip").select("*").eq("id", tripId).single();
+      const { data, error } = await supabase.from("trips").select("*").eq("id", tripId).single();
 
       if (error) {
         console.error("Error fetching trip:", error);
@@ -129,7 +135,7 @@ class TripDatabaseService {
     }
 
     try {
-      const { error } = await supabase.from("trip").delete().eq("id", tripId);
+      const { error } = await supabase.from("trips").delete().eq("id", tripId);
 
       if (error) {
         console.error("Error deleting trip:", error);

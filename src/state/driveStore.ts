@@ -51,6 +51,7 @@ interface DriveStoreState {
   setDriverScore: (score: DriverScore) => void;
   addTrip: (trip: Trip) => void;
   setWeeklySummary: (summary: WeeklySummary) => void;
+  loadTripsFromSupabase: () => Promise<void>;
 
   // Auto-tracking state
   isAutoTrackingEnabled: boolean;
@@ -85,7 +86,24 @@ export const useDriveStore = create<DriveStoreState>()(
       activeAutoTrip: null,
 
       // Actions
-      login: (user) => set({ isAuthenticated: true, user }),
+      login: async (user) => {
+        set({ isAuthenticated: true, user });
+
+        // Load trips from Supabase after login
+        try {
+          const { getUserTrips } = await import("../services/trips.service");
+          const { data: trips, error } = await getUserTrips();
+
+          if (error) {
+            console.error("Error loading trips after login:", error);
+          } else if (trips && trips.length > 0) {
+            set({ trips: trips.slice(0, 50) }); // Keep last 50 trips
+            console.log(`✅ Loaded ${trips.length} trips after login`);
+          }
+        } catch (error) {
+          console.error("Failed to load trips after login:", error);
+        }
+      },
 
       logout: () =>
         set({
@@ -113,6 +131,25 @@ export const useDriveStore = create<DriveStoreState>()(
         })),
 
       setWeeklySummary: (summary) => set({ weeklySummary: summary }),
+
+      loadTripsFromSupabase: async () => {
+        try {
+          const { getUserTrips } = await import("../services/trips.service");
+          const { data: trips, error } = await getUserTrips();
+
+          if (error) {
+            console.error("Error loading trips from Supabase:", error);
+            return;
+          }
+
+          if (trips && trips.length > 0) {
+            set({ trips: trips.slice(0, 50) }); // Keep last 50 trips
+            console.log(`✅ Loaded ${trips.length} trips from Supabase`);
+          }
+        } catch (error) {
+          console.error("Failed to load trips from Supabase:", error);
+        }
+      },
 
       setAutoTrackingEnabled: (enabled) => set({ isAutoTrackingEnabled: enabled }),
       setAutoTripDetectionEnabled: (enabled) => set({ isAutoTripDetectionEnabled: enabled }),
