@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect } from "react";
-import { View, Text, ScrollView, Pressable, Alert, Platform } from "react-native";
+import { View, Text, ScrollView, Pressable, Alert, Platform, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
@@ -396,6 +396,30 @@ export default function BackgroundLocationTestScreen() {
               Request Permissions
             </Text>
           </Pressable>
+
+          {Platform.OS === "ios" && permissionStatus.foreground === "granted" && permissionStatus.background !== "granted" && (
+            <View
+              style={{
+                backgroundColor: Colors.warning + "10",
+                padding: Spacing.md,
+                borderRadius: BorderRadius.medium,
+                marginTop: Spacing.md,
+                borderLeftWidth: 3,
+                borderLeftColor: Colors.warning,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: Typography.bodySmall.fontSize,
+                  color: Colors.textSecondary,
+                  lineHeight: 18,
+                }}
+              >
+                ℹ️ <Text style={{ fontWeight: "600" }}>Expo Go Limitation:</Text> "Always Allow" isn't available in Expo Go.{"\n\n"}
+                ✅ <Text style={{ fontWeight: "600" }}>You can still test!</Text> Use the simulation buttons below to test trip detection with foreground permission only.
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Tracking Status */}
