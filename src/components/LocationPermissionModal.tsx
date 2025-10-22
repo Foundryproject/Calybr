@@ -33,13 +33,10 @@ export default function LocationPermissionModal({
     try {
       const permissions = await backgroundLocationService.requestPermissions();
 
-      if (permissions.foreground && (!requireBackground || permissions.background)) {
-        // All required permissions granted
+      if (permissions.foreground) {
+        // Foreground permission granted - enough for testing
         onPermissionGranted();
         onClose();
-      } else if (permissions.foreground && requireBackground && !permissions.background) {
-        // Only foreground granted, need background
-        setStep("background");
       } else {
         // Permissions denied, show settings option
         setStep("settings");
@@ -98,42 +95,6 @@ export default function LocationPermissionModal({
           Calybr needs your location to track your drives and calculate your DriveScore
         </Text>
       </View>
-
-      {Platform.OS === "ios" && requireBackground && (
-        <View
-          style={{
-            backgroundColor: Colors.warning + "10",
-            padding: Spacing.md,
-            borderRadius: BorderRadius.medium,
-            marginBottom: Spacing.lg,
-            borderLeftWidth: 4,
-            borderLeftColor: Colors.warning,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: Typography.body.fontSize,
-              color: Colors.textPrimary,
-              fontWeight: "600",
-              marginBottom: Spacing.xs,
-            }}
-          >
-            ⚠️ Important for iOS:
-          </Text>
-          <Text
-            style={{
-              fontSize: Typography.bodySmall.fontSize,
-              color: Colors.textSecondary,
-              lineHeight: 20,
-            }}
-          >
-            You'll see TWO permission requests:{"\n"}
-            1. First: Tap "Allow While Using App"{"\n"}
-            2. Second: Tap "Change to Always Allow"{"\n\n"}
-            This allows automatic trip detection even when the app is closed.
-          </Text>
-        </View>
-      )}
 
       <View style={{ gap: Spacing.md, marginBottom: Spacing.xl }}>
         <FeatureItem
@@ -234,44 +195,6 @@ export default function LocationPermissionModal({
           For automatic trip tracking, Calybr needs to access your location even when the app is closed
         </Text>
       </View>
-
-      {Platform.OS === "ios" && (
-        <View
-          style={{
-            backgroundColor: Colors.primary + "10",
-            padding: Spacing.md,
-            borderRadius: BorderRadius.medium,
-            marginBottom: Spacing.lg,
-            borderWidth: 2,
-            borderColor: Colors.primary,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: Typography.body.fontSize,
-              color: Colors.textPrimary,
-              fontWeight: "600",
-              marginBottom: Spacing.xs,
-              textAlign: "center",
-            }}
-          >
-            📍 iOS Instructions
-          </Text>
-          <Text
-            style={{
-              fontSize: Typography.bodySmall.fontSize,
-              color: Colors.textSecondary,
-              lineHeight: 20,
-              textAlign: "center",
-            }}
-          >
-            When the next dialog appears, please tap:{"\n"}
-            <Text style={{ fontWeight: "700", color: Colors.primary }}>"Change to Always Allow"</Text>
-            {"\n\n"}
-            This is required for automatic trip detection.
-          </Text>
-        </View>
-      )}
 
       <View
         style={{
