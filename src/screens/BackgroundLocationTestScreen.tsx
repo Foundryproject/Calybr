@@ -12,6 +12,7 @@ import * as Location from "expo-location";
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from "../utils/theme";
 import { backgroundLocationService } from "../services/background-location.service";
 import { autoTripDetection } from "../services/auto-trip-detection.service";
+import { autoTripManager } from "../services/auto-trip-manager";
 import { useUser, useActiveAutoTrip } from "../state/driveStore";
 import LocationPermissionModal from "../components/LocationPermissionModal";
 
