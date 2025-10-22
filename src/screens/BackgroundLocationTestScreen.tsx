@@ -164,6 +164,11 @@ export default function BackgroundLocationTestScreen() {
       return;
     }
 
+    if (!user?.id) {
+      Alert.alert("Error", "User not found. Please log in again.");
+      return;
+    }
+
     setTestMode("real");
     setLogs([]);
     setTripSummary(null);
@@ -173,24 +178,37 @@ export default function BackgroundLocationTestScreen() {
     
     // Start auto trip detection
     try {
-      await autoTripManager.initialize();
+      const success = await autoTripManager.start(user.id);
+      if (!success) {
+        throw new Error("Failed to start trip detection");
+      }
+      
       setIsRealDriveActive(true);
+      addLog("✅ Auto trip detection started");
       Alert.alert(
-        "Ready to Drive!",
-        "Start driving at 15+ km/h for 10 seconds. The trip will automatically be detected and tracked.",
+        "Ready to Drive! 🚗",
+        "Drive at 15+ km/h for 10 seconds to automatically start trip tracking.\n\nStop for 2+ minutes to end the trip.",
         [{ text: "Got it!" }]
       );
     } catch (error: any) {
       addLog(`❌ Error: ${error.message}`);
-      Alert.alert("Error", "Failed to start real drive mode");
+      Alert.alert("Error", "Failed to start real drive mode: " + error.message);
+      setTestMode(null);
     }
   };
 
-  const stopRealDrive = () => {
-    setIsRealDriveActive(false);
-    setTestMode(null);
-    addLog("🛑 Real drive mode deactivated");
-    Alert.alert("Drive Mode Stopped", "You can start a new test anytime.");
+  const stopRealDrive = async () => {
+    try {
+      await autoTripManager.stop();
+      setIsRealDriveActive(false);
+      setTestMode(null);
+      addLog("🛑 Real drive mode deactivated");
+      Alert.alert("Drive Mode Stopped", "Auto trip detection has been stopped. You can start a new test anytime.");
+    } catch (error: any) {
+      addLog(`⚠️ Error stopping: ${error.message}`);
+      setIsRealDriveActive(false);
+      setTestMode(null);
+    }
   };
 
   const hasPermission = permissionStatus.foreground === "granted";
