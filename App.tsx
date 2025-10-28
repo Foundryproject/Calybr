@@ -4,8 +4,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import MainNavigator from "./src/navigation/MainNavigator";
-import SignUpScreen from "./src/screens/SignUpScreen";
-import OnboardingScreen from "./src/screens/OnboardingScreen";
+import { SignUpScreen, OnboardingScreen } from "./src/features/auth";
 import { useIsAuthenticated, useHasCompletedOnboarding } from "./src/state/driveStore";
 
 export default function App() {

@@ -5,18 +5,28 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Typography } from "../utils/theme";
 
-// Screens
-import TripsScreen from "../screens/TripsScreen";
-import CoachScreen from "../screens/CoachScreen";
-import RewardsScreen from "../screens/RewardsScreen";
-import ProfileScreen from "../screens/ProfileScreen";
-import SettingsScreen from "../screens/SettingsScreen";
-import ScoreDetailsScreen from "../screens/ScoreDetailsScreen";
-import TripDetailScreen from "../screens/TripDetailScreen";
-import ActiveTripScreen from "../screens/ActiveTripScreen";
-import TripSummaryScreen from "../screens/TripSummaryScreen";
-import ScoreScreen from "../screens/ScoreScreen";
-import BackgroundLocationTestScreen from "../screens/BackgroundLocationTestScreen";
+// Screens organized by feature
+import {
+  ProfileScreen,
+  SettingsScreen,
+} from "../features/auth";
+import {
+  TripsScreen,
+  TripDetailScreen,
+  ActiveTripScreen,
+  TripSummaryScreen,
+} from "../features/trips";
+import {
+  ScoreDetailsScreen,
+} from "../features/scoring";
+import {
+  DriveScreen,
+  BackgroundLocationTestScreen,
+} from "../features/location";
+import {
+  CoachScreen,
+  RewardsScreen,
+} from "../features/social";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -139,11 +149,11 @@ export default function MainNavigator() {
         }}
       />
       <Tab.Screen
-        name="ScoreTab"
-        component={ScoreScreen}
+        name="DriveTab"
+        component={DriveScreen}
         options={{
-          tabBarLabel: "Score",
-          tabBarIcon: ({ color, size }) => <Ionicons name="speedometer-outline" size={size} color={color} />,
+          tabBarLabel: "Drive",
+          tabBarIcon: ({ color, size }) => <Ionicons name="navigate" size={size} color={color} />,
         }}
       />
       <Tab.Screen

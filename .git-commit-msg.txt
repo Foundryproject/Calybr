@@ -1,0 +1,43 @@
+docs: Reorganize project structure for clarity and maintainability
+
+Major structural improvements to make the project easier to navigate:
+
+📚 Documentation Organization
+- Created docs/ folder to centralize all documentation
+- Moved backend docs to docs/backend/
+- Added docs/README.md as documentation hub
+- Created PROJECT_MAP.md for quick navigation
+- Created STRUCTURE.md for visual hierarchy
+- Added ORGANIZATION_SUMMARY.md detailing changes
+
+🔧 Scripts Organization
+- Moved utility scripts from supabase/ to scripts/
+- Better separation of concerns (code vs scripts)
+
+📱 Code Organization
+- Created src/index.ts with centralized exports
+- 11 well-organized export sections
+- Beautiful ASCII art structure
+- Comprehensive usage examples
+
+🧹 Cleanup
+- Removed duplicate env.example file
+- Updated README.md with documentation links
+- Cleaned .env.example
+
+Benefits:
+✅ All docs in one place (docs/)
+✅ Easy navigation (PROJECT_MAP.md)
+✅ Clear structure (STRUCTURE.md)
+✅ Centralized imports (src/index.ts)
+✅ Better onboarding for new developers
+✅ Professional project organization
+
+Files Changed:
+- New: PROJECT_MAP.md, STRUCTURE.md, ORGANIZATION_SUMMARY.md
+- New: docs/ folder with README.md + backend/ subdirectory
+- New: scripts/ folder (moved from supabase/)
+- New: src/index.ts (centralized exports)
+- Modified: README.md (added doc links)
+- Modified: .env.example (cleanup)
+- Deleted: env.example (duplicate)

@@ -2,6 +2,14 @@
 
 Calybr is a mobile application built with React Native and Expo that helps drivers improve their safety through AI-powered coaching, **automatic trip detection**, real-time tracking, and gamification.
 
+## 📚 Documentation & Navigation
+
+- **[📖 Project Map](./PROJECT_MAP.md)** - Quick reference to find anything in the project
+- **[📂 Project Structure](./STRUCTURE.md)** - Complete folder organization
+- **[📋 Organization Guide](./docs/PROJECT_ORGANIZATION.md)** - Code organization & best practices
+- **[📚 Documentation Hub](./docs/README.md)** - All documentation in one place
+- **[🗄️ Backend Docs](./docs/backend/)** - Database, functions, deployment
+
 ---
 
 ## 🚀 Key Features
