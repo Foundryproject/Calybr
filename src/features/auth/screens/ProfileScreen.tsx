@@ -1,552 +1,597 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, Pressable, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import { format } from "date-fns";
-import { Colors, Typography, Spacing, BorderRadius, Shadow, getScoreColor } from "../../../utils/theme";
-import { useDriverScore, useTrips, useWeeklySummary } from "../../../state/driveStore";
-import ScoreGauge from "../../scoring/components/ScoreGauge";
-import { EventType } from "../../../types/drive";
-
-const getEventIcon = (eventType: EventType): keyof typeof Ionicons.glyphMap => {
-  switch (eventType) {
-    case "hard_brake":
-      return "car-outline";
-    case "speeding":
-      return "speedometer-outline";
-    case "phone_distraction":
-      return "phone-portrait-outline";
-    case "aggressive_corner":
-      return "sync-outline";
-    case "night_driving":
-      return "moon-outline";
-    default:
-      return "alert-circle-outline";
-  }
-};
-
-const getEventLabel = (eventType: EventType): string => {
-  switch (eventType) {
-    case "hard_brake":
-      return "Hard Brake";
-    case "speeding":
-      return "Speeding";
-    case "phone_distraction":
-      return "Phone";
-    case "aggressive_corner":
-      return "Corner";
-    case "night_driving":
-      return "Night";
-    default:
-      return "Event";
-  }
-};
+import { LinearGradient } from "expo-linear-gradient";
+import { startOfMonth, endOfMonth } from "date-fns";
+import { Colors, Typography, Spacing, BorderRadius, Shadow } from "../../../utils/theme";
+import { useUser, useOnboardingData, useTrips } from "../../../state/driveStore";
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
-  const driverScore = useDriverScore();
+  const user = useUser();
+  const onboardingData = useOnboardingData();
   const trips = useTrips();
-  const weeklySummary = useWeeklySummary();
 
-  // Filter trips with low scores or events
-  const reviewableTrips = trips.filter((trip) => trip.score < 85 || trip.events.length > 0);
+  // Calculate this month's statistics
+  const monthlyStats = useMemo(() => {
+    const now = new Date();
+    const monthStart = startOfMonth(now);
+    const monthEnd = endOfMonth(now);
 
-  if (!driverScore) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textSecondary }}>
-            Loading your score...
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+    const thisMonthTrips = trips.filter((trip) => {
+      const tripDate = new Date(trip.date);
+      return tripDate >= monthStart && tripDate <= monthEnd;
+    });
+
+    const totalTrips = thisMonthTrips.length;
+    const totalMiles = thisMonthTrips.reduce((sum, trip) => sum + trip.distance, 0);
+    
+    // Calculate gas based on average fuel efficiency (assume 25 MPG)
+    const avgMPG = 25;
+    const totalGas = totalMiles / avgMPG;
+
+    return {
+      totalTrips,
+      totalMiles: totalMiles.toFixed(1),
+      totalGas: totalGas.toFixed(1),
+    };
+  }, [trips]);
+
+  const displayName = onboardingData
+    ? `${onboardingData.firstName} ${onboardingData.lastName}`
+    : user?.name || "Driver";
+
+  const firstName = onboardingData?.firstName || user?.name?.split(" ")[0] || "Driver";
+  
+  const carInfo = onboardingData
+    ? `${onboardingData.carYear} ${onboardingData.carMake} ${onboardingData.carModel}`
+    : null;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
-      <ScrollView 
-        style={{ flex: 1 }} 
+    <View style={{ flex: 1, backgroundColor: Colors.background }}>
+      <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: Spacing.xxl }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header with Settings Button */}
-        <View style={{ paddingHorizontal: Spacing.xl, paddingTop: Spacing.xl, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <View>
+        {/* Hero Header with Gradient */}
+        <LinearGradient
+          colors={[Colors.primary, Colors.primary + "E6", Colors.primary + "CC"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{
+            paddingTop: Spacing.xxl,
+            paddingBottom: 80,
+            paddingHorizontal: Spacing.xl,
+          }}
+        >
+          <SafeAreaView edges={["top"]}>
+            {/* Settings Button */}
+            <View style={{ alignItems: "flex-end", marginBottom: Spacing.lg }}>
+              <Pressable
+                onPress={() => (navigation as any).navigate("Settings")}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: "rgba(255, 255, 255, 0.2)",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Ionicons name="settings-outline" size={22} color="#FFFFFF" />
+              </Pressable>
+            </View>
+
+            {/* Greeting */}
             <Text
               style={{
                 fontSize: Typography.h1.fontSize,
-                fontWeight: Typography.h1.fontWeight,
-                color: Colors.textPrimary,
+                fontWeight: "700",
+                color: "#FFFFFF",
                 marginBottom: Spacing.xs,
               }}
             >
-              Your Score
+              Hello, {firstName}
             </Text>
             <Text
               style={{
-                fontSize: Typography.bodySmall.fontSize,
-                color: Colors.textSecondary,
+                fontSize: Typography.body.fontSize,
+                color: "rgba(255, 255, 255, 0.9)",
               }}
             >
-              Based on your recent trips
+              Here's your driving profile
             </Text>
-          </View>
-          
-          {/* Settings Button */}
-          <Pressable
-            onPress={() => (navigation as any).navigate("Settings")}
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              backgroundColor: Colors.surface,
-              justifyContent: "center",
-              alignItems: "center",
-              ...Shadow.subtle,
-            }}
-          >
-            <Ionicons name="settings-outline" size={24} color={Colors.textPrimary} />
-          </Pressable>
-        </View>
+          </SafeAreaView>
+        </LinearGradient>
 
-        {/* Score Gauge */}
-        <View style={{ alignItems: "center", paddingVertical: Spacing.lg, paddingHorizontal: Spacing.sm }}>
-          <ScoreGauge
-            value={882}
-            min={0}
-            max={1000}
-            ranges={[
-              { to: 200, color: "#D84A3A" },
-              { to: 400, color: "#F28C38" },
-              { to: 600, color: "#F2C94C" },
-              { to: 800, color: "#7AC142" },
-              { to: 1000, color: "#1E9E63" },
-            ]}
-            labels={["Poor", "Fair", "OK", "Good", "Excellent"]}
-            thickness={14}
-            gap={3}
-            startAngle={135}
-            ariaLabel="Your driving score"
-          />
-
-          {/* Delta */}
+        {/* Profile Card - Floating Effect */}
+        <View
+          style={{
+            marginTop: -60,
+            paddingHorizontal: Spacing.xl,
+            marginBottom: Spacing.xl,
+          }}
+        >
           <View
             style={{
-              flexDirection: "row",
-              alignItems: "center",
-              marginTop: Spacing.lg,
-              paddingHorizontal: Spacing.lg,
-              paddingVertical: Spacing.sm,
-              backgroundColor: driverScore.delta >= 0 ? Colors.success + "20" : Colors.error + "20",
-              borderRadius: BorderRadius.pill,
+              backgroundColor: Colors.surface,
+              borderRadius: BorderRadius.large,
+              padding: Spacing.xl,
+              ...Shadow.medium,
             }}
           >
-            <Ionicons
-              name={driverScore.delta >= 0 ? "trending-up" : "trending-down"}
-              size={20}
-              color={driverScore.delta >= 0 ? Colors.success : Colors.error}
+            {/* Avatar and Name */}
+            <View style={{ alignItems: "center", marginBottom: Spacing.lg }}>
+              <View
+                style={{
+                  width: 80,
+                  height: 80,
+                  borderRadius: 40,
+                  backgroundColor: Colors.primary + "20",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  marginBottom: Spacing.md,
+                  borderWidth: 3,
+                  borderColor: Colors.primary + "30",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 32,
+                    fontWeight: "700",
+                    color: Colors.primary,
+                  }}
+                >
+                  {displayName.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+
+              <Text
+                style={{
+                  fontSize: Typography.h2.fontSize,
+                  fontWeight: "700",
+                  color: Colors.textPrimary,
+                  marginBottom: Spacing.xs,
+                }}
+              >
+                {displayName}
+              </Text>
+
+              {user?.email && (
+                <Text
+                  style={{
+                    fontSize: Typography.bodySmall.fontSize,
+                    color: Colors.textSecondary,
+                  }}
+                >
+                  {user.email}
+                </Text>
+              )}
+            </View>
+
+            {/* Car Info Badge */}
+            {carInfo && (
+              <View
+                style={{
+                  backgroundColor: Colors.primary + "10",
+                  paddingHorizontal: Spacing.lg,
+                  paddingVertical: Spacing.md,
+                  borderRadius: BorderRadius.medium,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Ionicons name="car-sport" size={20} color={Colors.primary} />
+                <Text
+                  style={{
+                    fontSize: Typography.body.fontSize,
+                    color: Colors.primary,
+                    marginLeft: Spacing.sm,
+                    fontWeight: "600",
+                  }}
+                >
+                  {carInfo}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* This Month Header */}
+        <View style={{ paddingHorizontal: Spacing.xl, marginBottom: Spacing.lg }}>
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.xs }}>
+            <View
+              style={{
+                width: 4,
+                height: 20,
+                backgroundColor: Colors.primary,
+                borderRadius: 2,
+                marginRight: Spacing.sm,
+              }}
             />
             <Text
               style={{
-                fontSize: Typography.body.fontSize,
-                fontWeight: "600",
-                color: driverScore.delta >= 0 ? Colors.success : Colors.error,
-                marginLeft: Spacing.sm,
+                fontSize: Typography.h2.fontSize,
+                fontWeight: "700",
+                color: Colors.textPrimary,
               }}
             >
-              {Math.abs(driverScore.delta)} vs last week
+              This Month
             </Text>
           </View>
-        </View>
-
-        {/* What you're doing well */}
-        <View style={{ paddingHorizontal: Spacing.xl, marginBottom: Spacing.xl }}>
           <Text
             style={{
-              fontSize: Typography.h3.fontSize,
-              fontWeight: Typography.h3.fontWeight,
-              color: Colors.textPrimary,
-              marginBottom: Spacing.md,
+              fontSize: Typography.bodySmall.fontSize,
+              color: Colors.textSecondary,
+              marginLeft: Spacing.md + 4,
             }}
           >
-            {"What you're doing well"}
+            Your driving statistics for {new Date().toLocaleString("default", { month: "long" })}
           </Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm }}>
-            {driverScore.strengths.map((strength, index) => (
-              <View
-                key={index}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingHorizontal: Spacing.lg,
-                  paddingVertical: Spacing.md,
-                  backgroundColor: Colors.success + "15",
-                  borderRadius: BorderRadius.pill,
-                }}
-              >
-                <Ionicons name="checkmark-circle" size={18} color={Colors.success} />
-                <Text
-                  style={{
-                    fontSize: Typography.bodySmall.fontSize,
-                    color: Colors.textPrimary,
-                    marginLeft: Spacing.sm,
-                    fontWeight: "500",
-                  }}
-                >
-                  {strength}
-                </Text>
-              </View>
-            ))}
-          </View>
         </View>
 
-        {/* What to improve */}
+        {/* Stats Cards - Premium Grid */}
         <View style={{ paddingHorizontal: Spacing.xl, marginBottom: Spacing.xl }}>
-          <Text
-            style={{
-              fontSize: Typography.h3.fontSize,
-              fontWeight: Typography.h3.fontWeight,
-              color: Colors.textPrimary,
-              marginBottom: Spacing.md,
-            }}
-          >
-            What to improve
-          </Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm }}>
-            {driverScore.improvements.map((improvement, index) => (
-              <View
-                key={index}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingHorizontal: Spacing.lg,
-                  paddingVertical: Spacing.md,
-                  backgroundColor: Colors.warning + "15",
-                  borderRadius: BorderRadius.pill,
-                }}
-              >
-                <Ionicons name="alert-circle" size={18} color={Colors.warning} />
-                <Text
-                  style={{
-                    fontSize: Typography.bodySmall.fontSize,
-                    color: Colors.textPrimary,
-                    marginLeft: Spacing.sm,
-                    fontWeight: "500",
-                  }}
-                >
-                  {improvement}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Quick Tip Card */}
-        <View style={{ paddingHorizontal: Spacing.xl, marginBottom: Spacing.xl }}>
+          {/* Total Trips - Large Card */}
           <View
             style={{
-              backgroundColor: Colors.primary + "15",
-              borderRadius: BorderRadius.medium,
-              padding: Spacing.lg,
-              borderLeftWidth: 4,
-              borderLeftColor: Colors.primary,
+              backgroundColor: Colors.surface,
+              borderRadius: BorderRadius.large,
+              padding: Spacing.xl,
+              marginBottom: Spacing.md,
+              ...Shadow.medium,
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.sm }}>
-              <Ionicons name="bulb" size={24} color={Colors.primary} />
-              <Text
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <View style={{ flex: 1 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginBottom: Spacing.md,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 24,
+                      backgroundColor: Colors.primary + "15",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      marginRight: Spacing.md,
+                    }}
+                  >
+                    <Ionicons name="car" size={24} color={Colors.primary} />
+                  </View>
+                  <Text
+                    style={{
+                      fontSize: Typography.body.fontSize,
+                      color: Colors.textSecondary,
+                      fontWeight: "500",
+                    }}
+                  >
+                    Total Trips
+                  </Text>
+                </View>
+                <Text
+                  style={{
+                    fontSize: 48,
+                    fontWeight: "800",
+                    color: Colors.textPrimary,
+                    letterSpacing: -2,
+                  }}
+                >
+                  {monthlyStats.totalTrips}
+                </Text>
+              </View>
+              <View
                 style={{
-                  fontSize: Typography.h3.fontSize,
-                  fontWeight: "600",
-                  color: Colors.textPrimary,
-                  marginLeft: Spacing.sm,
+                  width: 80,
+                  height: 80,
+                  borderRadius: 40,
+                  backgroundColor: Colors.primary + "10",
+                  justifyContent: "center",
+                  alignItems: "center",
                 }}
               >
-                Quick Tip
-              </Text>
+                <Ionicons name="trending-up" size={40} color={Colors.primary} />
+              </View>
             </View>
-            <Text
+          </View>
+
+          {/* Miles and Gas - Side by Side */}
+          <View style={{ flexDirection: "row", gap: Spacing.md }}>
+            {/* Total Miles */}
+            <View
               style={{
-                fontSize: Typography.body.fontSize,
-                color: Colors.textPrimary,
-                lineHeight: 24,
+                flex: 1,
+                backgroundColor: Colors.surface,
+                borderRadius: BorderRadius.large,
+                padding: Spacing.lg,
+                ...Shadow.medium,
               }}
             >
-              {driverScore.quickTip}
-            </Text>
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: Colors.success + "15",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  marginBottom: Spacing.md,
+                }}
+              >
+                <Ionicons name="navigate" size={22} color={Colors.success} />
+              </View>
+              <Text
+                style={{
+                  fontSize: Typography.caption.fontSize,
+                  color: Colors.textSecondary,
+                  marginBottom: Spacing.xs,
+                  fontWeight: "500",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
+                Miles
+              </Text>
+              <Text
+                style={{
+                  fontSize: 28,
+                  fontWeight: "700",
+                  color: Colors.textPrimary,
+                  marginBottom: Spacing.xs,
+                }}
+              >
+                {monthlyStats.totalMiles}
+              </Text>
+              <View
+                style={{
+                  height: 3,
+                  backgroundColor: Colors.success + "30",
+                  borderRadius: 2,
+                  width: "60%",
+                }}
+              />
+            </View>
+
+            {/* Total Gas */}
+            <View
+              style={{
+                flex: 1,
+                backgroundColor: Colors.surface,
+                borderRadius: BorderRadius.large,
+                padding: Spacing.lg,
+                ...Shadow.medium,
+              }}
+            >
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: Colors.warning + "15",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  marginBottom: Spacing.md,
+                }}
+              >
+                <Ionicons name="water" size={22} color={Colors.warning} />
+              </View>
+              <Text
+                style={{
+                  fontSize: Typography.caption.fontSize,
+                  color: Colors.textSecondary,
+                  marginBottom: Spacing.xs,
+                  fontWeight: "500",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
+                Gas
+              </Text>
+              <Text
+                style={{
+                  fontSize: 28,
+                  fontWeight: "700",
+                  color: Colors.textPrimary,
+                  marginBottom: Spacing.xs,
+                }}
+              >
+                {monthlyStats.totalGas}
+                <Text
+                  style={{
+                    fontSize: Typography.body.fontSize,
+                    fontWeight: "500",
+                    color: Colors.textSecondary,
+                  }}
+                >
+                  {" "}
+                  gal
+                </Text>
+              </Text>
+              <View
+                style={{
+                  height: 3,
+                  backgroundColor: Colors.warning + "30",
+                  borderRadius: 2,
+                  width: "60%",
+                }}
+              />
+            </View>
           </View>
         </View>
 
-        {/* View Details Button */}
-        <View style={{ paddingHorizontal: Spacing.xl, marginBottom: Spacing.xl }}>
-          <Pressable
-            onPress={() => (navigation as any).navigate("ScoreDetails")}
-            style={{
-              backgroundColor: Colors.primary,
-              paddingVertical: Spacing.lg,
-              borderRadius: BorderRadius.pill,
-              alignItems: "center",
-              ...Shadow.subtle,
-            }}
-          >
+        {/* Driver Details - If Available */}
+        {onboardingData && (onboardingData.phoneNumber || onboardingData.age || onboardingData.licensePlate) && (
+          <View style={{ paddingHorizontal: Spacing.xl, marginBottom: Spacing.xl }}>
             <Text
               style={{
-                fontSize: Typography.body.fontSize,
+                fontSize: Typography.h3.fontSize,
                 fontWeight: "600",
                 color: Colors.textPrimary,
+                marginBottom: Spacing.lg,
               }}
             >
-              View Details
+              Driver Details
             </Text>
-          </Pressable>
-        </View>
 
-        {/* Weekly Summary Card */}
-        {weeklySummary && (
-          <View style={{ paddingHorizontal: Spacing.xl, marginBottom: Spacing.xl }}>
             <View
               style={{
-                backgroundColor: Colors.primary + "15",
-                borderRadius: BorderRadius.medium,
+                backgroundColor: Colors.surface,
+                borderRadius: BorderRadius.large,
                 padding: Spacing.lg,
                 ...Shadow.subtle,
               }}
             >
-              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.md }}>
-                <Ionicons name="trophy" size={24} color={Colors.primary} />
-                <Text
-                  style={{
-                    fontSize: Typography.h3.fontSize,
-                    fontWeight: "600",
-                    color: Colors.textPrimary,
-                    marginLeft: Spacing.sm,
-                  }}
-                >
-                  This Week
-                </Text>
-              </View>
-
-              <Text
-                style={{
-                  fontSize: Typography.body.fontSize,
-                  color: Colors.textPrimary,
-                  marginBottom: Spacing.md,
-                }}
-              >
-                <Text style={{ fontWeight: "600" }}>Top opportunity: </Text>
-                {weeklySummary.topImprovement}
-              </Text>
-
-              {/* Streaks */}
-              {weeklySummary.streaks.map((streak) => (
+              {/* Phone */}
+              {onboardingData.phoneNumber && (
                 <View
-                  key={streak.name}
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    backgroundColor: streak.active ? Colors.success + "20" : Colors.divider,
-                    borderRadius: BorderRadius.small,
-                    padding: Spacing.md,
-                    marginBottom: Spacing.sm,
+                    paddingVertical: Spacing.md,
+                    borderBottomWidth: 1,
+                    borderBottomColor: Colors.divider,
                   }}
                 >
-                  <Ionicons
-                    name={streak.active ? "flame" : "flame-outline"}
-                    size={20}
-                    color={streak.active ? Colors.success : Colors.textSecondary}
-                  />
-                  <Text
-                    style={{
-                      fontSize: Typography.bodySmall.fontSize,
-                      color: Colors.textPrimary,
-                      marginLeft: Spacing.sm,
-                      flex: 1,
-                    }}
-                  >
-                    {streak.name}
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: Typography.label.fontSize,
-                      fontWeight: "600",
-                      color: streak.active ? Colors.success : Colors.textSecondary,
-                    }}
-                  >
-                    {streak.count} days
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* Drive Reviews */}
-        <View style={{ paddingHorizontal: Spacing.xl, marginBottom: Spacing.xl }}>
-          <Text
-            style={{
-              fontSize: Typography.h2.fontSize,
-              fontWeight: "600",
-              color: Colors.textPrimary,
-              marginBottom: Spacing.lg,
-            }}
-          >
-            Drive Reviews
-          </Text>
-
-          {reviewableTrips.length === 0 ? (
-            <View
-              style={{
-                backgroundColor: Colors.success + "15",
-                borderRadius: BorderRadius.medium,
-                padding: Spacing.xxl,
-                alignItems: "center",
-              }}
-            >
-              <Ionicons name="checkmark-circle" size={60} color={Colors.success} />
-              <Text
-                style={{
-                  fontSize: Typography.h3.fontSize,
-                  fontWeight: "600",
-                  color: Colors.textPrimary,
-                  marginTop: Spacing.lg,
-                  textAlign: "center",
-                }}
-              >
-                All Clear!
-              </Text>
-              <Text
-                style={{
-                  fontSize: Typography.body.fontSize,
-                  color: Colors.textSecondary,
-                  marginTop: Spacing.sm,
-                  textAlign: "center",
-                }}
-              >
-                {"No issues flagged—great driving! Keep maintaining your excellent performance."}
-              </Text>
-            </View>
-          ) : (
-            reviewableTrips.map((trip) => {
-              const scoreColor = getScoreColor(trip.score);
-
-              return (
-                <Pressable
-                  key={trip.id}
-                  onPress={() => (navigation as any).navigate("TripsTab", { 
-                    screen: "TripDetail", 
-                    params: { tripId: trip.id } 
-                  })}
-                  style={{
-                    backgroundColor: Colors.surface,
-                    borderRadius: BorderRadius.medium,
-                    marginBottom: Spacing.lg,
-                    overflow: "hidden",
-                    ...Shadow.subtle,
-                  }}
-                >
-                  {/* Thumbnail */}
                   <View
                     style={{
-                      height: 100,
-                      backgroundColor: Colors.surfaceSecondary,
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      backgroundColor: Colors.primary + "10",
                       justifyContent: "center",
                       alignItems: "center",
+                      marginRight: Spacing.md,
                     }}
                   >
-                    <Ionicons name="videocam-outline" size={40} color={Colors.textTertiary} />
+                    <Ionicons name="call" size={18} color={Colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
                     <Text
                       style={{
                         fontSize: Typography.caption.fontSize,
-                        color: Colors.textTertiary,
-                        marginTop: Spacing.xs,
+                        color: Colors.textSecondary,
+                        marginBottom: 2,
                       }}
                     >
-                      Dashcam + Map
+                      Phone Number
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: Typography.body.fontSize,
+                        color: Colors.textPrimary,
+                        fontWeight: "500",
+                      }}
+                    >
+                      {onboardingData.phoneNumber}
                     </Text>
                   </View>
+                </View>
+              )}
 
-                  {/* Info */}
-                  <View style={{ padding: Spacing.lg }}>
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: Spacing.sm }}>
-                      <Text
-                        style={{
-                          fontSize: Typography.body.fontSize,
-                          color: Colors.textSecondary,
-                        }}
-                      >
-                        {format(trip.date, "MMM d")} • {trip.startTime} - {trip.endTime}
-                      </Text>
-                      <View
-                        style={{
-                          paddingHorizontal: Spacing.md,
-                          paddingVertical: Spacing.xs,
-                          backgroundColor: scoreColor + "20",
-                          borderRadius: BorderRadius.pill,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            fontSize: Typography.label.fontSize,
-                            fontWeight: "600",
-                            color: scoreColor,
-                          }}
-                        >
-                          {trip.score}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Event chips */}
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm, marginBottom: Spacing.md }}>
-                      {trip.events.map((event) => (
-                        <View
-                          key={event.id}
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            paddingHorizontal: Spacing.md,
-                            paddingVertical: Spacing.xs,
-                            backgroundColor: Colors.warning + "15",
-                            borderRadius: BorderRadius.pill,
-                          }}
-                        >
-                          <Ionicons name={getEventIcon(event.type)} size={14} color={Colors.warning} />
-                          <Text
-                            style={{
-                              fontSize: Typography.caption.fontSize,
-                              color: Colors.warning,
-                              marginLeft: Spacing.xs,
-                              fontWeight: "600",
-                            }}
-                          >
-                            {getEventLabel(event.type)}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-
-                    {/* CTA */}
-                    <View style={{ flexDirection: "row", alignItems: "center" }}>
-                      <Text
-                        style={{
-                          fontSize: Typography.bodySmall.fontSize,
-                          color: Colors.primary,
-                          fontWeight: "600",
-                        }}
-                      >
-                        Open Review
-                      </Text>
-                      <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
-                    </View>
+              {/* Age */}
+              {onboardingData.age && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingVertical: Spacing.md,
+                    borderBottomWidth: onboardingData.licensePlate ? 1 : 0,
+                    borderBottomColor: Colors.divider,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      backgroundColor: Colors.success + "10",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      marginRight: Spacing.md,
+                    }}
+                  >
+                    <Ionicons name="calendar" size={18} color={Colors.success} />
                   </View>
-                </Pressable>
-              );
-            })
-          )}
-        </View>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        fontSize: Typography.caption.fontSize,
+                        color: Colors.textSecondary,
+                        marginBottom: 2,
+                      }}
+                    >
+                      Age
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: Typography.body.fontSize,
+                        color: Colors.textPrimary,
+                        fontWeight: "500",
+                      }}
+                    >
+                      {onboardingData.age} years old
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* License Plate */}
+              {onboardingData.licensePlate && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingVertical: Spacing.md,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      backgroundColor: Colors.warning + "10",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      marginRight: Spacing.md,
+                    }}
+                  >
+                    <Ionicons name="card" size={18} color={Colors.warning} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        fontSize: Typography.caption.fontSize,
+                        color: Colors.textSecondary,
+                        marginBottom: 2,
+                      }}
+                    >
+                      License Plate
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: Typography.body.fontSize,
+                        color: Colors.textPrimary,
+                        fontWeight: "500",
+                      }}
+                    >
+                      {onboardingData.licensePlate}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
