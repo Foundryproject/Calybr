@@ -1,0 +1,245 @@
+###
+# Calybr Backend API Examples
+# 
+# Usage with REST Client extension (VS Code) or copy to Postman
+# Replace <SUPABASE_URL> and <ANON_KEY> with your values
+
+@supabaseUrl = http://localhost:54321
+@anonKey = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+### Health Check
+GET {{supabaseUrl}}/rest/v1/
+Authorization: Bearer {{anonKey}}
+
+###
+# =============================================================================
+# Ingest Telemetry - Single Sample
+# =============================================================================
+POST {{supabaseUrl}}/functions/v1/ingest-telemetry
+Content-Type: application/json
+Authorization: Bearer {{anonKey}}
+
+{
+  "userId": "550e8400-e29b-41d4-a716-446655440000",
+  "deviceId": "660e8400-e29b-41d4-a716-446655440000",
+  "samples": [
+    {
+      "ts": "2025-10-19T14:30:00.000Z",
+      "lat": 39.9526,
+      "lon": -75.1652,
+      "speed_mps": 12.4,
+      "heading_deg": 108,
+      "hdop": 0.7,
+      "accel": {
+        "ax": -0.2,
+        "ay": 0.05,
+        "az": 9.65
+      },
+      "screen_on": false
+    }
+  ]
+}
+
+###
+# =============================================================================
+# Ingest Telemetry - Batch of 10 Samples (realistic mobile upload)
+# =============================================================================
+POST {{supabaseUrl}}/functions/v1/ingest-telemetry
+Content-Type: application/json
+Authorization: Bearer {{anonKey}}
+
+{
+  "userId": "550e8400-e29b-41d4-a716-446655440000",
+  "deviceId": "660e8400-e29b-41d4-a716-446655440000",
+  "samples": [
+    {
+      "ts": "2025-10-19T14:30:00.000Z",
+      "lat": 39.9526,
+      "lon": -75.1652,
+      "speed_mps": 10.0,
+      "heading_deg": 90,
+      "hdop": 0.8,
+      "accel": {"ax": 0.1, "ay": 0.0, "az": 9.8},
+      "screen_on": false
+    },
+    {
+      "ts": "2025-10-19T14:30:01.000Z",
+      "lat": 39.9527,
+      "lon": -75.1650,
+      "speed_mps": 11.2,
+      "heading_deg": 92,
+      "hdop": 0.7,
+      "accel": {"ax": 0.3, "ay": -0.1, "az": 9.75},
+      "screen_on": false
+    },
+    {
+      "ts": "2025-10-19T14:30:02.000Z",
+      "lat": 39.9528,
+      "lon": -75.1648,
+      "speed_mps": 12.8,
+      "heading_deg": 94,
+      "hdop": 0.6,
+      "accel": {"ax": 0.5, "ay": 0.0, "az": 9.8},
+      "screen_on": false
+    },
+    {
+      "ts": "2025-10-19T14:30:03.000Z",
+      "lat": 39.9529,
+      "lon": -75.1646,
+      "speed_mps": 14.0,
+      "heading_deg": 95,
+      "hdop": 0.7,
+      "accel": {"ax": 0.2, "ay": 0.1, "az": 9.82},
+      "screen_on": false
+    },
+    {
+      "ts": "2025-10-19T14:30:04.000Z",
+      "lat": 39.9530,
+      "lon": -75.1644,
+      "speed_mps": 15.0,
+      "heading_deg": 96,
+      "hdop": 0.8,
+      "accel": {"ax": -0.1, "ay": 0.0, "az": 9.79},
+      "screen_on": false
+    },
+    {
+      "ts": "2025-10-19T14:30:05.000Z",
+      "lat": 39.9531,
+      "lon": -75.1642,
+      "speed_mps": 15.5,
+      "heading_deg": 97,
+      "hdop": 0.7,
+      "accel": {"ax": 0.0, "ay": -0.05, "az": 9.81},
+      "screen_on": false
+    },
+    {
+      "ts": "2025-10-19T14:30:06.000Z",
+      "lat": 39.9532,
+      "lon": -75.1640,
+      "speed_mps": 15.8,
+      "heading_deg": 98,
+      "hdop": 0.6,
+      "accel": {"ax": 0.1, "ay": 0.0, "az": 9.80},
+      "screen_on": true
+    },
+    {
+      "ts": "2025-10-19T14:30:07.000Z",
+      "lat": 39.9533,
+      "lon": -75.1638,
+      "speed_mps": 16.0,
+      "heading_deg": 99,
+      "hdop": 0.7,
+      "accel": {"ax": -0.2, "ay": 0.1, "az": 9.78},
+      "screen_on": true
+    },
+    {
+      "ts": "2025-10-19T14:30:08.000Z",
+      "lat": 39.9534,
+      "lon": -75.1636,
+      "speed_mps": 15.5,
+      "heading_deg": 100,
+      "hdop": 0.8,
+      "accel": {"ax": -0.4, "ay": 0.0, "az": 9.82},
+      "screen_on": false
+    },
+    {
+      "ts": "2025-10-19T14:30:09.000Z",
+      "lat": 39.9535,
+      "lon": -75.1634,
+      "speed_mps": 14.8,
+      "heading_deg": 101,
+      "hdop": 0.7,
+      "accel": {"ax": -0.3, "ay": -0.1, "az": 9.79},
+      "screen_on": false
+    }
+  ]
+}
+
+###
+# =============================================================================
+# Trigger Trip Finalization (Manual)
+# =============================================================================
+POST {{supabaseUrl}}/functions/v1/trips-finalize
+Content-Type: application/json
+Authorization: Bearer {{anonKey}}
+
+###
+# =============================================================================
+# Query: Get User's Trips
+# =============================================================================
+GET {{supabaseUrl}}/rest/v1/trip?user_id=eq.550e8400-e29b-41d4-a716-446655440000&status=eq.closed&select=*,trip_score(*)&order=started_at.desc&limit=10
+Authorization: Bearer {{anonKey}}
+
+###
+# =============================================================================
+# Query: Get Trip Details with Score and Features
+# =============================================================================
+GET {{supabaseUrl}}/rest/v1/trip?id=eq.770e8400-e29b-41d4-a716-446655440000&select=*,trip_score(*),trip_features(*),event(*)
+Authorization: Bearer {{anonKey}}
+
+###
+# =============================================================================
+# Query: Get User's Daily Scores (Last 30 Days)
+# =============================================================================
+GET {{supabaseUrl}}/rest/v1/driver_score_daily?user_id=eq.550e8400-e29b-41d4-a716-446655440000&order=day.desc&limit=30
+Authorization: Bearer {{anonKey}}
+
+###
+# =============================================================================
+# Query: Get Events for a Trip
+# =============================================================================
+GET {{supabaseUrl}}/rest/v1/event?trip_id=eq.770e8400-e29b-41d4-a716-446655440000&order=ts_start.asc
+Authorization: Bearer {{anonKey}}
+
+###
+# =============================================================================
+# Query: Get Current Score Weights
+# =============================================================================
+GET {{supabaseUrl}}/rest/v1/score_weights?order=created_at.desc&limit=1
+Authorization: Bearer {{anonKey}}
+
+###
+# =============================================================================
+# Direct SQL Query Examples (using PostgREST RPC)
+# =============================================================================
+
+### Get Trips Ready to Finalize
+POST {{supabaseUrl}}/rest/v1/rpc/get_trips_to_finalize
+Content-Type: application/json
+Authorization: Bearer {{anonKey}}
+
+{}
+
+###
+# =============================================================================
+# cURL Examples (for terminal/scripts)
+# =============================================================================
+
+# Ingest telemetry
+# curl -X POST http://localhost:54321/functions/v1/ingest-telemetry \
+#   -H "Content-Type: application/json" \
+#   -H "Authorization: Bearer <ANON_KEY>" \
+#   -d '{
+#     "userId": "550e8400-e29b-41d4-a716-446655440000",
+#     "deviceId": "660e8400-e29b-41d4-a716-446655440000",
+#     "samples": [{
+#       "ts": "2025-10-19T14:30:00.000Z",
+#       "lat": 39.9526,
+#       "lon": -75.1652,
+#       "speed_mps": 12.4,
+#       "heading_deg": 108,
+#       "hdop": 0.7,
+#       "accel": {"ax": -0.2, "ay": 0.05, "az": 9.65},
+#       "screen_on": false
+#     }]
+#   }'
+
+# Finalize trips
+# curl -X POST http://localhost:54321/functions/v1/trips-finalize \
+#   -H "Authorization: Bearer <ANON_KEY>"
+
+# Get user trips
+# curl -X GET "http://localhost:54321/rest/v1/trip?user_id=eq.550e8400-e29b-41d4-a716-446655440000&select=*,trip_score(*)&order=started_at.desc" \
+#   -H "Authorization: Bearer <ANON_KEY>" \
+#   -H "apikey: <ANON_KEY>"
+
