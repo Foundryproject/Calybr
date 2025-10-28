@@ -1,17 +1,45 @@
 import React from "react";
-import { View, Text, Pressable, ScrollView } from "react-native";
+import { View, Text, Pressable, ScrollView, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import MapView, { Polyline, PROVIDER_DEFAULT } from "react-native-maps";
 import { useNavigation } from "@react-navigation/native";
 import { format } from "date-fns";
 import { Colors, Typography, Spacing, BorderRadius, Shadow, getScoreColor } from "../../../utils/theme";
-import { useTrips } from "../../../state/driveStore";
+import { useTrips, useDriveStore } from "../../../state/driveStore";
 import { Trip } from "../../../types/drive";
 
 export default function TripsScreen() {
   const navigation = useNavigation();
   const trips = useTrips();
+  const loadTripsFromSupabase = useDriveStore((s) => s.loadTripsFromSupabase);
+  const [refreshing, setRefreshing] = React.useState(false);
+
+  // Load trips when screen mounts
+  React.useEffect(() => {
+    console.log('TripsScreen: Mounted, loading trips...');
+    loadTripsFromSupabase();
+  }, []);
+
+  React.useEffect(() => {
+    console.log('TripsScreen: Current trips count:', trips.length);
+    if (trips.length > 0) {
+      console.log('TripsScreen: First trip:', JSON.stringify(trips[0], null, 2));
+    }
+  }, [trips]);
+
+  const handleRefresh = async () => {
+    console.log('🔄 Manually refreshing trips...');
+    setRefreshing(true);
+    try {
+      await loadTripsFromSupabase();
+      console.log('✅ Trips refreshed successfully');
+    } catch (error) {
+      console.error('❌ Error refreshing trips:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const renderTripCard = (trip: Trip) => {
     const scoreColor = getScoreColor(trip.score);
@@ -192,19 +220,48 @@ export default function TripsScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: Spacing.xl, paddingVertical: Spacing.lg }}
+        contentContainerStyle={{ 
+          paddingHorizontal: Spacing.xl, 
+          paddingVertical: Spacing.lg,
+          flexGrow: 1, // Ensure ScrollView is always scrollable for pull-to-refresh
+        }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={Colors.primary}
+            colors={[Colors.primary]}
+          />
+        }
       >
-        <Text
-          style={{
-            fontSize: Typography.h1.fontSize,
-            fontWeight: Typography.h1.fontWeight,
-            color: Colors.textPrimary,
-            marginBottom: Spacing.xs,
-          }}
-        >
-          Your Trips
-        </Text>
+        {/* Header with refresh button */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xs }}>
+          <Text
+            style={{
+              fontSize: Typography.h1.fontSize,
+              fontWeight: Typography.h1.fontWeight,
+              color: Colors.textPrimary,
+            }}
+          >
+            Your Trips
+          </Text>
+          <Pressable
+            onPress={handleRefresh}
+            disabled={refreshing}
+            style={{
+              padding: Spacing.sm,
+              borderRadius: BorderRadius.pill,
+              backgroundColor: refreshing ? Colors.divider : Colors.primary + '20',
+            }}
+          >
+            <Ionicons 
+              name={refreshing ? "hourglass-outline" : "refresh"} 
+              size={24} 
+              color={Colors.primary} 
+            />
+          </Pressable>
+        </View>
         <Text
           style={{
             fontSize: Typography.bodySmall.fontSize,
