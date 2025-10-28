@@ -18,6 +18,7 @@ import {
 } from "../features/trips";
 import {
   ScoreDetailsScreen,
+  ScoreScreen,
 } from "../features/scoring";
 import {
   DriveScreen,
@@ -149,11 +150,11 @@ export default function MainNavigator() {
         }}
       />
       <Tab.Screen
-        name="DriveTab"
-        component={DriveScreen}
+        name="ScoreTab"
+        component={ScoreScreen}
         options={{
-          tabBarLabel: "Drive",
-          tabBarIcon: ({ color, size }) => <Ionicons name="navigate" size={size} color={color} />,
+          tabBarLabel: "Score",
+          tabBarIcon: ({ color, size }) => <Ionicons name="speedometer-outline" size={size} color={color} />,
         }}
       />
       <Tab.Screen
