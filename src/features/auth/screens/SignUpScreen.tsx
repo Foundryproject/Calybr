@@ -13,8 +13,9 @@ import { Ionicons } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from "../../../utils/theme";
 import { useDriveStore } from "../../../state/driveStore";
-import { signUpWithEmail, signInWithEmail } from "../services/auth.service";
-import { isSupabaseConfigured } from "../../../lib/supabase";
+import { signUpWithEmail, signInWithEmail, signInWithGoogle, isOnboardingCompleted } from "../services/auth.service";
+import { isSupabaseConfigured, supabase } from "../../../lib/supabase";
+import { makeRedirectUri } from "expo-auth-session";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -27,6 +28,61 @@ export default function SignUpScreen() {
   const [error, setError] = useState<string>("");
 
   const login = useDriveStore((s) => s.login);
+  const completeOnboarding = useDriveStore((s) => s.completeOnboarding);
+
+  // Define handleAuthSuccess - only called after successful OAuth
+  const handleAuthSuccess = React.useCallback(async (user: any) => {
+    try {
+      console.log('handleAuthSuccess called with user:', {
+        id: user.id,
+        email: user.email,
+        metadata: user.user_metadata,
+      });
+      
+      // Check if onboarding is completed
+      console.log('Checking onboarding status...');
+      const onboardingComplete = await isOnboardingCompleted();
+      console.log('Onboarding complete:', onboardingComplete);
+      
+      // Get user metadata
+      const firstName = user.user_metadata?.first_name || user.user_metadata?.full_name?.split(' ')[0] || '';
+      const lastName = user.user_metadata?.last_name || user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '';
+      
+      console.log('Extracted names:', { firstName, lastName });
+      
+      // Log in user
+      console.log('Calling login with user data...');
+      login({
+        id: user.id,
+        email: user.email || '',
+        name: user.user_metadata?.full_name || `${firstName} ${lastName}`.trim() || user.email?.split('@')[0] || 'User',
+        authProvider: user.app_metadata?.provider === 'google' ? 'google' : 'email',
+      });
+      console.log('Login called successfully');
+
+      // If onboarding is complete, skip onboarding screen
+      if (onboardingComplete) {
+        console.log('Onboarding complete, marking as done...');
+        completeOnboarding({
+          firstName: firstName,
+          lastName: lastName,
+          phoneNumber: '',
+          age: '',
+          gender: '',
+          carMake: '',
+          carModel: '',
+          carYear: '',
+          licensePlate: '',
+        });
+        console.log('Onboarding marked as complete');
+      } else {
+        console.log('Onboarding NOT complete, user should see onboarding screen');
+      }
+    } catch (error) {
+      console.error('Error handling auth success:', error);
+      throw error; // Re-throw to catch in parent
+    }
+  }, [login, completeOnboarding]);
 
   const handleEmailAuth = async () => {
     if (!email || !password || (!isLogin && !name)) {
@@ -95,9 +151,95 @@ export default function SignUpScreen() {
   };
 
   const handleGoogleSignIn = async () => {
-    // Google OAuth requires a published app with custom URL scheme
-    // In Vibecode development environment, use email authentication instead
-    setError("Google Sign In requires a published app. Please use email/password to sign up.");
+    if (!isSupabaseConfigured()) {
+      setError("Google Sign In requires Supabase configuration. Please add your Supabase credentials to .env file.");
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+
+    try {
+      // Get the OAuth URL from Supabase
+      const { url } = await signInWithGoogle();
+      
+      if (url) {
+        console.log('Opening OAuth URL:', url);
+        
+        // Create redirect URI dynamically (handles both Expo Go and standalone)
+        const redirectUrl = makeRedirectUri({
+          path: 'auth/callback',
+        });
+        
+        console.log('Using redirect URL:', redirectUrl);
+        
+        // Open the OAuth URL in the browser
+        const result = await WebBrowser.openAuthSessionAsync(url, redirectUrl);
+        
+        console.log('WebBrowser result:', result);
+        
+        if (result.type === 'success' && result.url) {
+          // Extract the URL parameters and manually set the session
+          const callbackUrl = new URL(result.url);
+          
+          // Tokens can be in hash (#) or query (?) depending on flow
+          const hashParams = new URLSearchParams(callbackUrl.hash.substring(1));
+          const queryParams = new URLSearchParams(callbackUrl.search);
+          
+          const access_token = hashParams.get('access_token') || queryParams.get('access_token');
+          const refresh_token = hashParams.get('refresh_token') || queryParams.get('refresh_token');
+          
+          if (access_token && refresh_token) {
+            console.log('Got tokens from callback, setting session...');
+            
+            try {
+              // Set the session manually
+              const { data: { session }, error: sessionError } = await supabase!.auth.setSession({
+                access_token,
+                refresh_token,
+              });
+              
+              if (sessionError) {
+                console.error('Session error:', sessionError);
+                throw sessionError;
+              }
+              
+              console.log('Session data:', {
+                hasSession: !!session,
+                hasUser: !!session?.user,
+                userId: session?.user?.id,
+                email: session?.user?.email,
+              });
+              
+              if (session?.user) {
+                console.log('Session set successfully, handling auth...');
+                await handleAuthSuccess(session.user);
+                console.log('Auth success handled, should be logged in now');
+              } else {
+                console.error('No user in session after setSession');
+                setError('Authentication failed - no user in session');
+              }
+            } catch (authError: any) {
+              console.error('Error during auth flow:', authError);
+              setError(authError.message || 'Authentication failed');
+            }
+          } else {
+            console.error('No tokens in callback URL');
+            console.error('Callback URL:', result.url);
+            setError('Authentication failed - no tokens received');
+          }
+        } else if (result.type === 'cancel') {
+          setError('Sign in was cancelled');
+        } else {
+          console.log('OAuth result type:', result.type);
+        }
+      }
+    } catch (err: any) {
+      console.error('Google sign in error:', err);
+      setError(err.message || 'Failed to sign in with Google');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
