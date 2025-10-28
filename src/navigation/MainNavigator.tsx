@@ -21,7 +21,6 @@ import {
   ScoreScreen,
 } from "../features/scoring";
 import {
-  DriveScreen,
   BackgroundLocationTestScreen,
 } from "../features/location";
 import {
