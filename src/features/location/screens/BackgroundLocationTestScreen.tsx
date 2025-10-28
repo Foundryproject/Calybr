@@ -15,6 +15,7 @@ import { backgroundLocationService } from "../services/background-location.servi
 import { autoTripDetection, DetectedTrip } from "../services/auto-trip-detection.service";
 import { autoTripManager } from "../services/auto-trip-manager";
 import { tripDatabase } from "../../trips/services/trip-database.service";
+import { routingService } from "../services/routing.service";
 import { useUser, useActiveAutoTrip } from "../../../state/driveStore";
 import LocationPermissionModal from "../components/LocationPermissionModal";
 
@@ -53,51 +54,6 @@ export default function BackgroundLocationTestScreen() {
     setLogs((prev) => [`[${timestamp}] ${message}`, ...prev].slice(0, 20));
   };
 
-  /**
-   * Generate a realistic route with turns, curves, and movements
-   */
-  const generateRealisticRoute = (
-    startLat: number,
-    startLon: number,
-    endLat: number,
-    endLon: number,
-    numPoints: number = 30,
-  ) => {
-    const route = [];
-    const totalDistance = Math.sqrt(Math.pow(endLat - startLat, 2) + Math.pow(endLon - startLon, 2));
-
-    // Create a curved path with realistic turns
-    for (let i = 0; i <= numPoints; i++) {
-      const progress = i / numPoints;
-
-      // Add sine wave for bobs and weaves
-      const weaveOffset = Math.sin(progress * Math.PI * 2) * 0.001;
-
-      // Add curves/turns - use a quadratic Bézier curve approach
-      const curvedProgress = progress * progress * (3 - 2 * progress); // Smooth S-curve
-
-      // Add random turns every few points
-      const turnOffset = Math.sin(i * 0.5) * 0.0005;
-
-      // Calculate interpolated position with curves
-      const lat = startLat + (endLat - startLat) * curvedProgress + weaveOffset + turnOffset;
-      const lon = startLon + (endLon - startLon) * curvedProgress + Math.cos(progress * Math.PI * 2) * 0.0008;
-
-      // Speed variation - slower on turns, faster on straights
-      const speedVariation = Math.abs(Math.sin(progress * Math.PI * 3)) * 15;
-      const baseSpeed = 25;
-      const speed = baseSpeed + speedVariation + Math.random() * 5;
-
-      route.push({
-        latitude: lat,
-        longitude: lon,
-        timestamp: Date.now() - (312000 - i * (312000 / numPoints)),
-        speed: Math.max(15, Math.min(50, speed)), // Keep speed realistic (15-50 km/h)
-      });
-    }
-
-    return route;
-  };
 
   const checkPermissions = async () => {
     const status = await backgroundLocationService.getPermissionStatus();
@@ -202,18 +158,28 @@ export default function BackgroundLocationTestScreen() {
       setTestStatus("complete");
       addLog("✅ Simulation complete!");
 
-      // Create realistic route with turns and curves
+      // Generate realistic route on actual roads using Google Directions API
       const startLat = location.coords.latitude;
       const startLon = location.coords.longitude;
-      const endLat = startLat + 0.015; // Slightly further for better visualization
-      const endLon = startLon + 0.015;
-
-      // Generate realistic route with 40 points (more points = smoother curves)
-      const mockRoute = generateRealisticRoute(startLat, startLon, endLat, endLon, 40);
+      
+      addLog("🗺️ Generating route on actual roads...");
+      const mockRoute = await routingService.generateRealisticRoute({
+        startLat,
+        startLon,
+        durationMinutes: 5.2,
+        targetDistance: 2500, // 2.5 km
+      });
+      
+      if (mockRoute.length > 0) {
+        addLog(`✅ Generated route with ${mockRoute.length} points on real roads`);
+      }
 
       // Calculate summary metrics from the generated route
       const maxSpeed = Math.max(...mockRoute.map((p) => p.speed));
       const avgSpeed = mockRoute.reduce((sum, p) => sum + p.speed, 0) / mockRoute.length;
+
+      // Get end location from the route
+      const endPoint = mockRoute[mockRoute.length - 1];
 
       // Create mock summary with actual location
       setTripSummary({
@@ -224,7 +190,7 @@ export default function BackgroundLocationTestScreen() {
         startTime: new Date(Date.now() - 312000).toLocaleTimeString(),
         endTime: new Date().toLocaleTimeString(),
         startLocation: `${startLat.toFixed(4)}, ${startLon.toFixed(4)}`,
-        endLocation: `${endLat.toFixed(4)}, ${endLon.toFixed(4)}`,
+        endLocation: `${endPoint.latitude.toFixed(4)}, ${endPoint.longitude.toFixed(4)}`,
       });
 
       // Store mock route data for map visualization
