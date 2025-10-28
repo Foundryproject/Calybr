@@ -52,17 +52,19 @@ export default function ScoreScreen() {
   // Filter trips with low scores or events
   const reviewableTrips = trips.filter((trip) => trip.score < 85 || trip.events.length > 0);
 
-  if (!driverScore) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <Text style={{ fontSize: Typography.body.fontSize, color: Colors.textSecondary }}>
-            Loading your score...
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // Default score for new users
+  const defaultScore: DriverScore = {
+    overall: 500,
+    safetyScore: 500,
+    ecoScore: 500,
+    delta: 0,
+    strengths: ["New Driver - Build Your Score!"],
+    improvements: ["Complete your first trip to start tracking"],
+    quickTip: "Welcome to Calybr! Start driving to build your personalized score. Your score starts at 500 and will improve as you drive safely.",
+  };
+
+  // Use default score if no driver score exists
+  const currentScore = driverScore || defaultScore;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
@@ -96,7 +98,7 @@ export default function ScoreScreen() {
         {/* Score Gauge */}
         <View style={{ alignItems: "center", paddingVertical: Spacing.lg, paddingHorizontal: Spacing.sm }}>
           <ScoreGauge
-            value={882}
+            value={currentScore.overall}
             min={0}
             max={1000}
             ranges={[
@@ -121,24 +123,24 @@ export default function ScoreScreen() {
               marginTop: Spacing.lg,
               paddingHorizontal: Spacing.lg,
               paddingVertical: Spacing.sm,
-              backgroundColor: driverScore.delta >= 0 ? Colors.success + "20" : Colors.error + "20",
+              backgroundColor: currentScore.delta >= 0 ? Colors.success + "20" : Colors.error + "20",
               borderRadius: BorderRadius.pill,
             }}
           >
             <Ionicons
-              name={driverScore.delta >= 0 ? "trending-up" : "trending-down"}
+              name={currentScore.delta >= 0 ? "trending-up" : "trending-down"}
               size={20}
-              color={driverScore.delta >= 0 ? Colors.success : Colors.error}
+              color={currentScore.delta >= 0 ? Colors.success : Colors.error}
             />
             <Text
               style={{
                 fontSize: Typography.body.fontSize,
                 fontWeight: "600",
-                color: driverScore.delta >= 0 ? Colors.success : Colors.error,
+                color: currentScore.delta >= 0 ? Colors.success : Colors.error,
                 marginLeft: Spacing.sm,
               }}
             >
-              {Math.abs(driverScore.delta)} vs last week
+              {Math.abs(currentScore.delta)} vs last week
             </Text>
           </View>
         </View>
@@ -156,7 +158,7 @@ export default function ScoreScreen() {
             {"What you're doing well"}
           </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm }}>
-            {driverScore.strengths.map((strength, index) => (
+            {currentScore.strengths.map((strength, index) => (
               <View
                 key={index}
                 style={{
@@ -197,7 +199,7 @@ export default function ScoreScreen() {
             What to improve
           </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm }}>
-            {driverScore.improvements.map((improvement, index) => (
+            {currentScore.improvements.map((improvement, index) => (
               <View
                 key={index}
                 style={{
@@ -256,7 +258,7 @@ export default function ScoreScreen() {
                 lineHeight: 24,
               }}
             >
-              {driverScore.quickTip}
+              {currentScore.quickTip}
             </Text>
           </View>
         </View>
