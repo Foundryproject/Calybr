@@ -135,7 +135,7 @@ export const useDriveStore = create<DriveStoreState>()(
       loadTripsFromSupabase: async () => {
         try {
           console.log('📥 Loading trips from Supabase...');
-          const { getUserTrips } = await import("../services/trips.service");
+          const { getUserTrips } = await import("../features/trips/services/trips.service");
           const { data: trips, error } = await getUserTrips();
 
           if (error) {
