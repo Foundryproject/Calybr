@@ -9,6 +9,7 @@
  */
 
 import * as Location from "expo-location";
+import { Accelerometer } from "expo-sensors";
 import { backgroundLocationService } from "./background-location.service";
 import { driveTrackingService, DriveMetrics } from "./drive-tracking.service";
 import { SpeedMonitor, SpeedViolation } from "../../../services/speed-monitoring.service";
@@ -32,6 +33,19 @@ export interface TripDetectionConfig {
   minTripDurationS?: number;
 }
 
+export interface DrivingEvent {
+  id: string;
+  type: "hard_brake" | "rapid_acceleration" | "phone_use" | "sharp_turn";
+  timestamp: Date;
+  location: {
+    latitude: number;
+    longitude: number;
+  };
+  severity: "low" | "medium" | "high";
+  value?: number; // G-force value
+  description: string;
+}
+
 export interface DetectedTrip {
   id: string;
   startTime: Date;
@@ -46,7 +60,7 @@ export interface DetectedTrip {
     timestamp: number;
     speed: number;
   }[];
-  events: any[];
+  events: DrivingEvent[];
   speedViolations?: SpeedViolation[];
 }
 
@@ -76,6 +90,14 @@ class AutoTripDetectionService {
 
   // Speed monitoring
   private speedMonitor: SpeedMonitor = new SpeedMonitor();
+
+  // Accelerometer for hard braking/acceleration detection
+  private accelerometerSubscription: any = null;
+  private previousSpeed: number = 0;
+  private lastAccelerationCheck: number = 0;
+  private readonly HARD_BRAKE_THRESHOLD = -0.4; // G-force (negative = braking)
+  private readonly HARD_ACCEL_THRESHOLD = 0.4; // G-force
+  private readonly ACCEL_CHECK_INTERVAL = 1000; // Check every second
 
   // Callbacks
   private onTripStartCallbacks: ((trip: DetectedTrip) => void)[] = [];
@@ -333,6 +355,9 @@ class AutoTripDetectionService {
     // Reset speed monitor for new trip
     this.speedMonitor.reset();
 
+    // Start accelerometer monitoring for hard braking/acceleration
+    this.startAccelerometerMonitoring();
+
     console.log("🚗 Trip started!", {
       id: this.currentTrip.id,
       location: `${location.coords.latitude.toFixed(6)}, ${location.coords.longitude.toFixed(6)}`,
@@ -348,6 +373,9 @@ class AutoTripDetectionService {
    */
   private async endTrip(): Promise<void> {
     if (!this.currentTrip) return;
+
+    // Stop accelerometer monitoring
+    this.stopAccelerometerMonitoring();
 
     this.currentTrip.endTime = new Date();
 
@@ -373,6 +401,7 @@ class AutoTripDetectionService {
       avgSpeed: `${this.currentTrip.averageSpeed.toFixed(1)} km/h`,
       maxSpeed: `${this.currentTrip.maxSpeed.toFixed(1)} km/h`,
       points: this.currentTrip.route.length,
+      events: this.currentTrip.events.length,
     });
 
     // Notify listeners
@@ -499,6 +528,114 @@ class AutoTripDetectionService {
    */
   getConfig(): Required<TripDetectionConfig> {
     return { ...this.config };
+  }
+
+  /**
+   * Start accelerometer monitoring for hard braking/acceleration detection
+   */
+  private startAccelerometerMonitoring(): void {
+    try {
+      // Set update interval to 100ms for responsive detection
+      Accelerometer.setUpdateInterval(100);
+
+      this.accelerometerSubscription = Accelerometer.addListener((accelerometerData) => {
+        if (!this.currentTrip || this.state !== "driving") return;
+
+        const now = Date.now();
+        
+        // Only check periodically to avoid too many events
+        if (now - this.lastAccelerationCheck < this.ACCEL_CHECK_INTERVAL) return;
+        this.lastAccelerationCheck = now;
+
+        // Calculate longitudinal acceleration (forward/backward)
+        // In device coordinates: y-axis is typically forward/backward
+        const longitudinalAccel = accelerometerData.y;
+
+        // Get current speed for context
+        const currentSpeed = this.lastSpeed;
+        
+        // Detect hard braking (negative acceleration)
+        if (longitudinalAccel < this.HARD_BRAKE_THRESHOLD) {
+          this.recordDrivingEvent({
+            type: "hard_brake",
+            severity: this.getAccelerationSeverity(Math.abs(longitudinalAccel)),
+            value: longitudinalAccel,
+            description: `Hard braking detected (${Math.abs(longitudinalAccel).toFixed(2)}g)`,
+          });
+        }
+        
+        // Detect rapid acceleration (positive acceleration)
+        else if (longitudinalAccel > this.HARD_ACCEL_THRESHOLD) {
+          this.recordDrivingEvent({
+            type: "rapid_acceleration",
+            severity: this.getAccelerationSeverity(longitudinalAccel),
+            value: longitudinalAccel,
+            description: `Rapid acceleration detected (${longitudinalAccel.toFixed(2)}g)`,
+          });
+        }
+
+        this.previousSpeed = currentSpeed;
+      });
+
+      console.log("📡 Accelerometer monitoring started");
+    } catch (error) {
+      console.warn("Failed to start accelerometer monitoring:", error);
+    }
+  }
+
+  /**
+   * Stop accelerometer monitoring
+   */
+  private stopAccelerometerMonitoring(): void {
+    if (this.accelerometerSubscription) {
+      this.accelerometerSubscription.remove();
+      this.accelerometerSubscription = null;
+      console.log("📡 Accelerometer monitoring stopped");
+    }
+  }
+
+  /**
+   * Record a driving event (hard brake, rapid acceleration, etc.)
+   */
+  private recordDrivingEvent(params: {
+    type: DrivingEvent["type"];
+    severity: DrivingEvent["severity"];
+    value?: number;
+    description: string;
+  }): void {
+    if (!this.currentTrip) return;
+
+    const lastRoutePoint = this.currentTrip.route[this.currentTrip.route.length - 1];
+    if (!lastRoutePoint) return;
+
+    const event: DrivingEvent = {
+      id: `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      type: params.type,
+      timestamp: new Date(),
+      location: {
+        latitude: lastRoutePoint.latitude,
+        longitude: lastRoutePoint.longitude,
+      },
+      severity: params.severity,
+      value: params.value,
+      description: params.description,
+    };
+
+    this.currentTrip.events.push(event);
+
+    // Log for debugging
+    const icon = params.type === "hard_brake" ? "🛑" : "⚡";
+    console.log(`${icon} ${params.description} - Severity: ${params.severity}`);
+  }
+
+  /**
+   * Determine severity based on G-force magnitude
+   */
+  private getAccelerationSeverity(gForce: number): DrivingEvent["severity"] {
+    const absForce = Math.abs(gForce);
+    if (absForce >= 0.7) return "high";
+    if (absForce >= 0.5) return "medium";
+    return "low";
   }
 
   /**
