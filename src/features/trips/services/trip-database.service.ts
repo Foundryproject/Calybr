@@ -85,6 +85,8 @@ class TripDatabaseService {
           latitude: p.latitude,
           longitude: p.longitude,
         })),
+        events_json: trip.events || [], // Save all driving events (hard brakes, phone use, etc.)
+        speed_violations_json: trip.speedViolations || [], // Save all speed violations
         status: 'closed' as const, // Mark as closed immediately for mobile app
       };
 
@@ -119,6 +121,8 @@ class TripDatabaseService {
         route: tripData.route_json,
         score: (data as any).score,
         created_at: (data as any).created_at,
+        events: tripData.events_json,
+        speed_violations: tripData.speed_violations_json,
       };
     } catch (error) {
       console.error("Failed to save trip:", error);
