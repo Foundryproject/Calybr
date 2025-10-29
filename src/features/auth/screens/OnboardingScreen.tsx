@@ -8,6 +8,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Modal,
+  FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,6 +19,14 @@ import { initializeMockData } from "../../../utils/mockData";
 import { completeOnboarding as completeOnboardingSupabase } from "../services/auth.service";
 import { initializeUserScore } from "../../scoring/services/scores.service";
 import { supabase, isSupabaseConfigured } from "../../../lib/supabase";
+import {
+  getVehicleTypes,
+  getUniqueMakes,
+  getModelsForMake,
+  getYearsForMakeModel,
+  getCarDetails,
+  CAR_DATABASE,
+} from "../../../utils/carDatabase";
 
 // Country codes with flags
 const countryCodes = [
@@ -39,9 +49,11 @@ interface OnboardingData {
   countryCode: string;
   age: string;
   gender: string;
+  carType: string;
   carMake: string;
   carModel: string;
   carYear: string;
+  fuelType: string;
   licensePlate: string;
   city: string;
   country: string;
@@ -50,6 +62,8 @@ interface OnboardingData {
 export default function OnboardingScreen() {
   const [step, setStep] = useState(0);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
+  const [showCarPicker, setShowCarPicker] = useState(false);
+  const [carPickerType, setCarPickerType] = useState<"type" | "make" | "model" | "year">("type");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -61,9 +75,11 @@ export default function OnboardingScreen() {
     countryCode: "+1",
     age: "",
     gender: "",
+    carType: "",
     carMake: "",
     carModel: "",
     carYear: "",
+    fuelType: "",
     licensePlate: "",
     city: "San Francisco",
     country: "USA",
@@ -106,6 +122,84 @@ export default function OnboardingScreen() {
   const handleBackToLogin = () => {
     // Log out the user to return to sign up screen
     logout();
+  };
+
+  // Get available car options based on current selections
+  const getAvailableCarTypes = () => {
+    return getVehicleTypes();
+  };
+
+  const getAvailableMakes = () => {
+    if (!formData.carType) return [];
+    // Filter makes that have the selected type
+    const makes = new Set<string>();
+    CAR_DATABASE.filter(car => car.type === formData.carType).forEach(car => makes.add(car.make));
+    return Array.from(makes).sort();
+  };
+
+  const getAvailableModels = () => {
+    if (!formData.carType || !formData.carMake) return [];
+    // Filter models that match type and make
+    const models = new Set<string>();
+    CAR_DATABASE.filter(car => car.type === formData.carType && car.make === formData.carMake)
+      .forEach(car => models.add(car.model));
+    return Array.from(models).sort();
+  };
+
+  const getAvailableYears = () => {
+    if (!formData.carType || !formData.carMake || !formData.carModel) return [];
+    // Filter years that match type, make, and model
+    const years = new Set<number>();
+    CAR_DATABASE.filter(car => 
+      car.type === formData.carType && 
+      car.make === formData.carMake && 
+      car.model === formData.carModel
+    ).forEach(car => years.add(car.year));
+    return Array.from(years).sort((a, b) => b - a); // Descending order
+  };
+
+  // Handle car selection
+  const handleCarSelection = (value: string) => {
+    if (carPickerType === "type") {
+      setFormData(prev => ({ 
+        ...prev, 
+        carType: value,
+        carMake: "", // Reset dependent fields
+        carModel: "",
+        carYear: "",
+        fuelType: ""
+      }));
+    } else if (carPickerType === "make") {
+      setFormData(prev => ({ 
+        ...prev, 
+        carMake: value,
+        carModel: "", // Reset dependent fields
+        carYear: "",
+        fuelType: ""
+      }));
+    } else if (carPickerType === "model") {
+      setFormData(prev => ({ 
+        ...prev, 
+        carModel: value,
+        carYear: "", // Reset dependent field
+        fuelType: ""
+      }));
+    } else if (carPickerType === "year") {
+      const selectedYear = Number(value);
+      setFormData(prev => ({ ...prev, carYear: value }));
+      
+      // Auto-set fuel type based on selection
+      const carDetails = getCarDetails(formData.carMake, formData.carModel, selectedYear);
+      if (carDetails) {
+        setFormData(prev => ({ ...prev, fuelType: carDetails.fuelType }));
+      }
+    }
+    setShowCarPicker(false);
+  };
+
+  const openCarPicker = (type: "type" | "make" | "model" | "year") => {
+    setCarPickerType(type);
+    setShowCarPicker(true);
   };
 
   const updateField = (field: keyof OnboardingData, value: string) => {

@@ -11,6 +11,7 @@
 import { autoTripDetection, DetectedTrip } from "./auto-trip-detection.service";
 import { tripDatabase } from "../../trips/services/trip-database.service";
 import { useDriveStore } from "../../../state/driveStore";
+import { getShortLocationName } from "../../../utils/geocoding";
 
 class AutoTripManager {
   private unsubscribers: (() => void)[] = [];

@@ -39,6 +39,18 @@ export interface Trip {
   startAddress: string;
   endAddress: string;
   thumbnail?: string; // map thumbnail
+  speedViolations?: {
+    timestamp: Date;
+    userSpeed: number;
+    speedLimit: number;
+    excessSpeed: number;
+    severity: 'minor' | 'moderate' | 'severe' | 'extreme';
+  }[];
+  speedStats?: {
+    totalViolations: number;
+    maxExcessSpeed: number;
+    averageExcessSpeed: number;
+  };
 }
 
 export interface ScoreMetric {
