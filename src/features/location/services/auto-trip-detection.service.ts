@@ -10,6 +10,7 @@
 
 import * as Location from "expo-location";
 import { Accelerometer } from "expo-sensors";
+import { AppState, AppStateStatus } from "react-native";
 import { backgroundLocationService } from "./background-location.service";
 import { driveTrackingService, DriveMetrics } from "./drive-tracking.service";
 import { SpeedMonitor, SpeedViolation } from "../../../services/speed-monitoring.service";
@@ -98,6 +99,13 @@ class AutoTripDetectionService {
   private readonly HARD_BRAKE_THRESHOLD = -0.4; // G-force (negative = braking)
   private readonly HARD_ACCEL_THRESHOLD = 0.4; // G-force
   private readonly ACCEL_CHECK_INTERVAL = 1000; // Check every second
+
+  // Phone distraction detection
+  private appStateSubscription: any = null;
+  private currentAppState: AppStateStatus = AppState.currentState;
+  private lastAppStateChange: number = Date.now();
+  private phoneUsageStartTime: number | null = null;
+  private readonly MIN_PHONE_USAGE_DURATION = 3000; // Must be distracted for 3 seconds to count
 
   // Callbacks
   private onTripStartCallbacks: ((trip: DetectedTrip) => void)[] = [];
@@ -358,6 +366,9 @@ class AutoTripDetectionService {
     // Start accelerometer monitoring for hard braking/acceleration
     this.startAccelerometerMonitoring();
 
+    // Start phone distraction monitoring
+    this.startPhoneDistractionMonitoring();
+
     console.log("🚗 Trip started!", {
       id: this.currentTrip.id,
       location: `${location.coords.latitude.toFixed(6)}, ${location.coords.longitude.toFixed(6)}`,
@@ -376,6 +387,9 @@ class AutoTripDetectionService {
 
     // Stop accelerometer monitoring
     this.stopAccelerometerMonitoring();
+
+    // Stop phone distraction monitoring
+    this.stopPhoneDistractionMonitoring();
 
     this.currentTrip.endTime = new Date();
 
@@ -636,6 +650,97 @@ class AutoTripDetectionService {
     if (absForce >= 0.7) return "high";
     if (absForce >= 0.5) return "medium";
     return "low";
+  }
+
+  /**
+   * Start phone distraction monitoring (app state changes)
+   */
+  private startPhoneDistractionMonitoring(): void {
+    try {
+      this.currentAppState = AppState.currentState;
+      this.lastAppStateChange = Date.now();
+      this.phoneUsageStartTime = null;
+
+      this.appStateSubscription = AppState.addEventListener("change", (nextAppState: AppStateStatus) => {
+        if (!this.currentTrip || this.state !== "driving") return;
+
+        const now = Date.now();
+        const previousState = this.currentAppState;
+
+        // Detect when user switches away from driving app (phone distraction)
+        if (previousState === "active" && nextAppState.match(/inactive|background/)) {
+          // User left the app - start tracking distraction
+          this.phoneUsageStartTime = now;
+          console.log("📱 Phone distraction started (app backgrounded)");
+        }
+
+        // Detect when user returns to the app
+        if (previousState.match(/inactive|background/) && nextAppState === "active") {
+          // User returned to app
+          if (this.phoneUsageStartTime) {
+            const distractionDuration = now - this.phoneUsageStartTime;
+
+            // Only count if distracted for minimum duration (filters quick switches)
+            if (distractionDuration >= this.MIN_PHONE_USAGE_DURATION) {
+              this.recordDrivingEvent({
+                type: "phone_use",
+                severity: this.getPhoneUsageSeverity(distractionDuration),
+                value: distractionDuration / 1000, // Duration in seconds
+                description: `Phone distraction (${(distractionDuration / 1000).toFixed(1)}s)`,
+              });
+            }
+
+            this.phoneUsageStartTime = null;
+          }
+        }
+
+        this.currentAppState = nextAppState;
+        this.lastAppStateChange = now;
+      });
+
+      console.log("📱 Phone distraction monitoring started");
+    } catch (error) {
+      console.warn("Failed to start phone distraction monitoring:", error);
+    }
+  }
+
+  /**
+   * Stop phone distraction monitoring
+   */
+  private stopPhoneDistractionMonitoring(): void {
+    if (this.appStateSubscription) {
+      this.appStateSubscription.remove();
+      this.appStateSubscription = null;
+
+      // Record any ongoing distraction when trip ends
+      if (this.phoneUsageStartTime && this.currentTrip) {
+        const now = Date.now();
+        const distractionDuration = now - this.phoneUsageStartTime;
+
+        if (distractionDuration >= this.MIN_PHONE_USAGE_DURATION) {
+          this.recordDrivingEvent({
+            type: "phone_use",
+            severity: this.getPhoneUsageSeverity(distractionDuration),
+            value: distractionDuration / 1000,
+            description: `Phone distraction (${(distractionDuration / 1000).toFixed(1)}s)`,
+          });
+        }
+
+        this.phoneUsageStartTime = null;
+      }
+
+      console.log("📱 Phone distraction monitoring stopped");
+    }
+  }
+
+  /**
+   * Determine phone usage severity based on duration
+   */
+  private getPhoneUsageSeverity(durationMs: number): DrivingEvent["severity"] {
+    const seconds = durationMs / 1000;
+    if (seconds >= 20) return "high"; // 20+ seconds is very dangerous
+    if (seconds >= 10) return "medium"; // 10-20 seconds is risky
+    return "low"; // 3-10 seconds is still bad but less severe
   }
 
   /**
