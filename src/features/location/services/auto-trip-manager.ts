@@ -238,7 +238,6 @@ class AutoTripManager {
           strengths: [], // TODO: Analyze strengths
           improvements: [], // TODO: Analyze areas for improvement
           quickTip: "Keep up the safe driving!",
-          lastUpdated: new Date(),
         });
 
         console.log("✅ Trip saved successfully:", {
