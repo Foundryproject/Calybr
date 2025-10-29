@@ -116,7 +116,7 @@ class TripDatabaseService {
         .limit(1);
 
       if (!fetchError && existingDevices && existingDevices.length > 0) {
-        return existingDevices[0].id;
+        return (existingDevices[0] as any).id;
       }
 
       // Create new device
@@ -126,7 +126,7 @@ class TripDatabaseService {
           user_id: userId,
           platform: "ios", // You can detect this dynamically if needed
           label: "Mobile App",
-        })
+        } as any)
         .select()
         .single();
 

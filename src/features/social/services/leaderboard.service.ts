@@ -44,7 +44,7 @@ export async function getCityLeaderboard(
         .eq('id', user.id)
         .single();
       
-      targetCity = profile?.city || 'San Francisco';
+      targetCity = (profile && (profile as any).city) ? (profile as any).city : 'San Francisco';
     }
 
     let query = supabase
@@ -104,7 +104,7 @@ export async function getCountryLeaderboard(
         .eq('id', user.id)
         .single();
       
-      targetCountry = profile?.country || 'USA';
+      targetCountry = (profile && (profile as any).country) ? (profile as any).country : 'USA';
     }
 
     let query = supabase
@@ -160,7 +160,7 @@ export async function getUserCityRank(): Promise<{ data: number | null; error: a
       .eq('id', user.id)
       .single();
 
-    if (!profile?.city) {
+    if (!profile || !(profile as any).city) {
       return { data: null, error: { message: 'User city not set' } };
     }
 
@@ -168,7 +168,7 @@ export async function getUserCityRank(): Promise<{ data: number | null; error: a
       .from('leaderboard_city')
       .select('rank')
       .eq('user_id', user.id)
-      .eq('city', profile.city)
+      .eq('city', (profile as any).city)
       .single();
 
     if (error) {
@@ -176,7 +176,7 @@ export async function getUserCityRank(): Promise<{ data: number | null; error: a
       return { data: null, error };
     }
 
-    return { data: data?.rank || null, error: null };
+    return { data: data ? (data as any).rank : null, error: null };
   } catch (error) {
     console.error('Error in getUserCityRank:', error);
     return { data: null, error };
@@ -199,7 +199,7 @@ export async function getUserCountryRank(): Promise<{ data: number | null; error
       .eq('id', user.id)
       .single();
 
-    if (!profile?.country) {
+    if (!profile || !(profile as any).country) {
       return { data: null, error: { message: 'User country not set' } };
     }
 
@@ -207,7 +207,7 @@ export async function getUserCountryRank(): Promise<{ data: number | null; error
       .from('leaderboard_country')
       .select('rank')
       .eq('user_id', user.id)
-      .eq('country', profile.country)
+      .eq('country', (profile as any).country)
       .single();
 
     if (error) {
@@ -215,7 +215,7 @@ export async function getUserCountryRank(): Promise<{ data: number | null; error
       return { data: null, error };
     }
 
-    return { data: data?.rank || null, error: null };
+    return { data: data ? (data as any).rank : null, error: null };
   } catch (error) {
     console.error('Error in getUserCountryRank:', error);
     return { data: null, error };

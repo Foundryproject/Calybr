@@ -46,21 +46,22 @@ export async function getUserScore(): Promise<{ data: DriverScore | null; error:
     if (error) return { data: null, error };
     if (!data) return { data: null, error: { message: 'Score not found' } };
 
+    const scoreData = data as any;
     return {
       data: {
-        overall: data.overall_score,
-        delta: data.week_delta,
+        overall: scoreData.overall_score,
+        delta: scoreData.week_delta,
         metrics: {
-          speeding: createMetric('Speeding', data.speeding_score, 'car', "Maintain speed limits"),
-          hardBrakes: createMetric('Hard Brakes', data.hard_brakes_score, 'alert-circle', "Anticipate stops"),
-          phoneDistraction: createMetric('Phone Use', data.phone_distraction_score, 'phone-portrait', "Hands-free only"),
-          cornering: createMetric('Cornering', data.cornering_score, 'git-branch', "Smooth turns"),
-          nightDriving: createMetric('Night Driving', data.night_driving_score, 'moon', "Extra caution"),
-          highway: createMetric('Highway', data.highway_score, 'speedometer', "Maintain safe distance"),
+          speeding: createMetric('Speeding', scoreData.speeding_score, 'car', "Maintain speed limits"),
+          hardBrakes: createMetric('Hard Brakes', scoreData.hard_brakes_score, 'alert-circle', "Anticipate stops"),
+          phoneDistraction: createMetric('Phone Use', scoreData.phone_distraction_score, 'phone-portrait', "Hands-free only"),
+          cornering: createMetric('Cornering', scoreData.cornering_score, 'git-branch', "Smooth turns"),
+          nightDriving: createMetric('Night Driving', scoreData.night_driving_score, 'moon', "Extra caution"),
+          highway: createMetric('Highway', scoreData.highway_score, 'speedometer', "Maintain safe distance"),
         },
-        strengths: getStrengths(data),
-        improvements: getImprovements(data),
-        quickTip: getQuickTip(data),
+        strengths: getStrengths(scoreData),
+        improvements: getImprovements(scoreData),
+        quickTip: getQuickTip(scoreData),
       },
       error: null
     };
@@ -84,7 +85,7 @@ export async function updateUserScore(scoreData: Partial<DriverScoreData>): Prom
         user_id: user.id,
         ...scoreData,
         updated_at: new Date().toISOString(),
-      });
+      } as any);
 
     return { error };
   } catch (error) {
@@ -114,7 +115,7 @@ export async function initializeUserScore(): Promise<{ error: any }> {
       total_trips: 0,
       driving_streak: 0,
       level: 1,
-    });
+    } as any);
 
     return { error };
   } catch (error) {

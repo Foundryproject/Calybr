@@ -11,19 +11,10 @@
 import * as Location from "expo-location";
 import { Platform } from "react-native";
 import { backgroundLocationService, BackgroundTrackingOptions } from "./background-location.service";
+import { DrivingEvent } from "./auto-trip-detection.service";
 
-export interface DrivingEvent {
-  id: string;
-  type: "hard_brake" | "hard_acceleration" | "speeding" | "phone_use" | "sharp_turn";
-  timestamp: number;
-  location: {
-    latitude: number;
-    longitude: number;
-  };
-  severity: "low" | "medium" | "high";
-  value?: number; // Speed, G-force, etc.
-  description: string;
-}
+// Re-export DrivingEvent for consumers of this module
+export { DrivingEvent };
 
 export interface DriveMetrics {
   distance: number; // meters

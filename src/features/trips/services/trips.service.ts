@@ -187,7 +187,7 @@ export async function createTrip(tripData: CreateTripData): Promise<{ data: Trip
       .from('trip')
       .insert({
         user_id: user.id,
-        device_id: devices[0].id,
+        device_id: (devices[0] as any).id,
         started_at: startDate.toISOString(),
         ended_at: endDate.toISOString(),
         duration_s: tripData.duration * 60, // Convert minutes to seconds
@@ -198,7 +198,7 @@ export async function createTrip(tripData: CreateTripData): Promise<{ data: Trip
         end_address: tripData.endAddress,
         route_json: tripData.route,
         status: 'closed', // Mark as closed for completed trips
-      })
+      } as any)
       .select()
       .single();
 
@@ -207,7 +207,7 @@ export async function createTrip(tripData: CreateTripData): Promise<{ data: Trip
     if (tripData.events?.length > 0) {
       await supabase.from('event').insert(
         tripData.events.map((event) => ({
-          trip_id: tripRecord.id,
+          trip_id: (tripRecord as any).id,
           type: event.type,
           ts_start: event.timestamp,
           severity: event.severity,
@@ -217,7 +217,7 @@ export async function createTrip(tripData: CreateTripData): Promise<{ data: Trip
       );
     }
 
-    return await getTripById(tripRecord.id);
+    return await getTripById((tripRecord as any).id);
   } catch (error) {
     console.error('Error in createTrip:', error);
     return { data: null, error };

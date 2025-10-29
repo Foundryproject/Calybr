@@ -199,40 +199,52 @@ class AutoTripManager {
           delta: 0, // TODO: Calculate vs last week
           metrics: {
             speeding: {
+              name: "Speed Compliance",
               score: scoreData.breakdown.speedViolations ? Math.max(0, 100 - scoreData.breakdown.speedViolations * 5) : 100,
               trend: trendValue,
               percentile: 50,
               advice: "Stay within speed limits",
+              icon: "🚦",
             },
             hardBrakes: {
+              name: "Smooth Braking",
               score: Math.round(scoreData.breakdown.hardBraking * 4), // 0-100 scale
               trend: trendValue,
               percentile: 50,
               advice: "Brake gradually to improve safety",
+              icon: "🛑",
             },
             phoneDistraction: {
+              name: "Focus",
               score: Math.round(scoreData.breakdown.phoneDistraction * 10), // 0-100 scale
               trend: trendValue,
               percentile: 50,
               advice: "Keep phone use to a minimum while driving",
+              icon: "📱",
             },
             cornering: {
+              name: "Smooth Acceleration",
               score: Math.round(scoreData.breakdown.rapidAcceleration * 6.67), // 0-100 scale (using rapid accel as proxy)
               trend: trendValue,
               percentile: 50,
               advice: "Accelerate smoothly for better efficiency",
+              icon: "⚡",
             },
             nightDriving: {
+              name: "Night Driving",
               score: Math.round(scoreData.breakdown.nightDriving * 5), // 0-100 scale
               trend: trendValue,
               percentile: 50,
               advice: "Extra caution during night driving",
+              icon: "🌙",
             },
             highway: {
+              name: "Highway Safety",
               score: Math.round(scoreData.breakdown.mileage * 5), // 0-100 scale
               trend: trendValue,
               percentile: 50,
               advice: "Maintain safe highway driving habits",
+              icon: "🛣️",
             },
           },
           strengths: [], // TODO: Analyze strengths

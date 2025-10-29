@@ -36,14 +36,14 @@ export interface TripDetectionConfig {
 
 export interface DrivingEvent {
   id: string;
-  type: "hard_brake" | "rapid_acceleration" | "phone_use" | "sharp_turn";
-  timestamp: Date;
+  type: "hard_brake" | "rapid_acceleration" | "phone_use" | "sharp_turn" | "hard_acceleration" | "speeding";
+  timestamp: Date | number;
   location: {
     latitude: number;
     longitude: number;
   };
   severity: "low" | "medium" | "high";
-  value?: number; // G-force value
+  value?: number; // G-force value or speed
   description: string;
 }
 

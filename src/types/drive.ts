@@ -2,9 +2,13 @@
 
 export type EventType = 
   | "hard_brake" 
+  | "rapid_acceleration"
   | "speeding" 
-  | "phone_distraction" 
+  | "phone_distraction"
+  | "phone_use"
   | "aggressive_corner"
+  | "sharp_turn"
+  | "hard_acceleration"
   | "night_driving";
 
 export interface DriveEvent {

@@ -7,7 +7,7 @@ import { format } from "date-fns";
 import { Colors, Typography, Spacing, BorderRadius, Shadow, getScoreColor } from "../../../utils/theme";
 import { useDriverScore, useTrips, useWeeklySummary } from "../../../state/driveStore";
 import ScoreGauge from "../components/ScoreGauge";
-import { EventType } from "../../../types/drive";
+import { EventType, DriverScore } from "../../../types/drive";
 
 const getEventIcon = (eventType: EventType): keyof typeof Ionicons.glyphMap => {
   switch (eventType) {

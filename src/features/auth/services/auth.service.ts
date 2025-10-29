@@ -66,7 +66,7 @@ export const signUpWithEmail = async (data: SignUpData) => {
         email: data.email,
         first_name: data.firstName,
         last_name: data.lastName,
-      });
+      } as any);
 
       // Log any errors but don't fail signup
       if (profileError) {
@@ -187,7 +187,7 @@ export const completeOnboarding = async (userId: string, onboardingData: Onboard
         city: onboardingData.city,
         country: onboardingData.country,
         onboarding_completed: true,
-      })
+      } as any)
       .eq("id", userId);
 
     if (error) throw error;
@@ -251,7 +251,7 @@ export const updateUserProfile = async (
     if (updates.city !== undefined) profileUpdates.city = updates.city;
     if (updates.country !== undefined) profileUpdates.country = updates.country;
 
-    const { error } = await client.from("profiles").update(profileUpdates).eq("id", user.id);
+    const { error } = await client.from("profiles").update(profileUpdates as any).eq("id", user.id);
 
     if (error) throw error;
   } catch (error) {
@@ -266,7 +266,7 @@ export const updateUserProfile = async (
 export const isOnboardingCompleted = async (): Promise<boolean> => {
   try {
     const profile = await getUserProfile();
-    return profile?.onboarding_completed ?? false;
+    return profile ? (profile.onboarding_completed ?? false) : false;
   } catch (error) {
     console.error("Check onboarding error:", error);
     return false;
