@@ -5,8 +5,9 @@
  * Score starts at 500 and adjusts with each trip
  * 
  * Scoring Components:
- * - Hard braking: 25%
+ * - Hard braking: 20%
  * - Rapid acceleration: 15%
+ * - Speed violations: 15%
  * - Night-time driving: 20%
  * - Mileage (exposure): 20%
  * - Phone distraction: 10%
@@ -16,15 +17,15 @@
 import { Trip } from '../types/drive';
 
 export interface TripScoreBreakdown {
-  hardBraking: number; // 0-25
+  hardBraking: number; // 0-20
   rapidAcceleration: number; // 0-15
+  speedViolations: number; // 0-15
   nightDriving: number; // 0-20
   mileage: number; // 0-20
   phoneDistraction: number; // 0-10
   improvementBonus: number; // 0-10
   baseScore: number; // Sum of above (0-100)
   finalScore: number; // Base + improvement bonus
-  speedViolations?: number; // Additional deductions
 }
 
 export interface DriverScoreData {
@@ -40,6 +41,7 @@ export interface DriverScoreData {
 const BENCHMARKS = {
   hardBrakesPerMile: 1.0, // Average: 1 hard brake per mile
   rapidAccelsPerMile: 1.0, // Average: 1 rapid accel per mile
+  speedViolationsPerMile: 0.5, // Average: 1 speed violation per 2 miles
   nightDrivingPercentage: 0.2, // Average: 20% of trips at night
   avgMilesPerTrip: 10, // Average trip: 10 miles
   phoneUsagePerTrip: 2, // Average: 2 phone uses per trip
@@ -55,6 +57,7 @@ export function calculateTripScore(
   const breakdown: TripScoreBreakdown = {
     hardBraking: 0,
     rapidAcceleration: 0,
+    speedViolations: 0,
     nightDriving: 0,
     mileage: 0,
     phoneDistraction: 0,
@@ -63,17 +66,17 @@ export function calculateTripScore(
     finalScore: 0,
   };
 
-  // 1. Hard Braking (25%)
+  // 1. Hard Braking (20%)
   const hardBrakeEvents = trip.events.filter(e => e.type === 'hard_brake').length;
   const hardBrakesPerMile = trip.distance > 0 ? hardBrakeEvents / trip.distance : 0;
   
   if (hardBrakesPerMile <= BENCHMARKS.hardBrakesPerMile) {
     // At or below average - full points
-    breakdown.hardBraking = 25;
+    breakdown.hardBraking = 20;
   } else {
     // Above average - deduct proportionally
     const ratio = BENCHMARKS.hardBrakesPerMile / hardBrakesPerMile;
-    breakdown.hardBraking = Math.max(0, 25 * ratio);
+    breakdown.hardBraking = Math.max(0, 20 * ratio);
   }
 
   // 2. Rapid Acceleration (15%)
@@ -87,7 +90,23 @@ export function calculateTripScore(
     breakdown.rapidAcceleration = Math.max(0, 15 * ratio);
   }
 
-  // 3. Night-time Driving (20%)
+  // 3. Speed Violations (15%)
+  const speedViolationCount = trip.speedViolations?.length || 0;
+  const speedViolationsPerMile = trip.distance > 0 ? speedViolationCount / trip.distance : 0;
+  
+  if (speedViolationsPerMile === 0) {
+    // No violations - full points
+    breakdown.speedViolations = 15;
+  } else if (speedViolationsPerMile <= BENCHMARKS.speedViolationsPerMile) {
+    // At or below average - full points
+    breakdown.speedViolations = 15;
+  } else {
+    // Above average - deduct proportionally
+    const ratio = BENCHMARKS.speedViolationsPerMile / speedViolationsPerMile;
+    breakdown.speedViolations = Math.max(0, 15 * ratio);
+  }
+
+  // 4. Night-time Driving (20%)
   const isNightTrip = isNightTime(trip.date, trip.startTime);
   const nightTrips = previousTrips.filter(t => isNightTime(t.date, t.startTime)).length;
   const totalTrips = previousTrips.length + 1;
@@ -100,13 +119,13 @@ export function calculateTripScore(
     breakdown.nightDriving = Math.max(0, 20 * ratio);
   }
 
-  // 4. Mileage/Exposure (20%)
+  // 5. Mileage/Exposure (20%)
   // Lose 1% for miles over average
   const milesOverAverage = Math.max(0, trip.distance - BENCHMARKS.avgMilesPerTrip);
   const deduction = Math.min(20, milesOverAverage * 0.01 * 20);
   breakdown.mileage = Math.max(0, 20 - deduction);
 
-  // 5. Phone Distraction (10%)
+  // 6. Phone Distraction (10%)
   const phoneEvents = trip.events.filter(e => e.type === 'phone_use').length;
   
   if (phoneEvents <= BENCHMARKS.phoneUsagePerTrip) {
@@ -120,26 +139,10 @@ export function calculateTripScore(
   breakdown.baseScore = 
     breakdown.hardBraking +
     breakdown.rapidAcceleration +
+    breakdown.speedViolations +
     breakdown.nightDriving +
     breakdown.mileage +
     breakdown.phoneDistraction;
-
-  // 6. Speed Violations (additional deductions from base score)
-  if (trip.speedViolations && trip.speedViolations.length > 0) {
-    const minorCount = trip.speedViolations.filter(v => v.severity === 'minor').length;
-    const moderateCount = trip.speedViolations.filter(v => v.severity === 'moderate').length;
-    const severeCount = trip.speedViolations.filter(v => v.severity === 'severe').length;
-    const extremeCount = trip.speedViolations.filter(v => v.severity === 'extreme').length;
-
-    const speedDeduction = 
-      (minorCount * 0.5) +      // -0.5 per minor violation
-      (moderateCount * 2) +      // -2 per moderate
-      (severeCount * 5) +        // -5 per severe
-      (extremeCount * 10);       // -10 per extreme
-
-    breakdown.speedViolations = speedDeduction;
-    breakdown.baseScore = Math.max(0, breakdown.baseScore - speedDeduction);
-  }
 
   // 7. Improvement Trend Bonus (up to +10%)
   if (previousTrips.length >= 3) {
