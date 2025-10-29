@@ -67,7 +67,7 @@ export default function OnboardingScreen() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
-  
+
   const [formData, setFormData] = useState<OnboardingData>({
     firstName: "",
     lastName: "",
@@ -97,11 +97,13 @@ export default function OnboardingScreen() {
     const loadUserMetadata = async () => {
       if (isSupabaseConfigured() && supabase) {
         try {
-          const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+          const {
+            data: { user: supabaseUser },
+          } = await supabase.auth.getUser();
           if (supabaseUser?.user_metadata) {
             const firstName = supabaseUser.user_metadata.first_name || "";
             const lastName = supabaseUser.user_metadata.last_name || "";
-            
+
             if (firstName || lastName) {
               setFormData((prev) => ({
                 ...prev,
@@ -111,7 +113,7 @@ export default function OnboardingScreen() {
             }
           }
         } catch (error) {
-          console.warn('Could not load user metadata:', error);
+          console.warn("Could not load user metadata:", error);
         }
       }
     };
@@ -133,7 +135,7 @@ export default function OnboardingScreen() {
     if (!formData.carType) return [];
     // Filter makes that have the selected type
     const makes = new Set<string>();
-    CAR_DATABASE.filter(car => car.type === formData.carType).forEach(car => makes.add(car.make));
+    CAR_DATABASE.filter((car) => car.type === formData.carType).forEach((car) => makes.add(car.make));
     return Array.from(makes).sort();
   };
 
@@ -141,8 +143,9 @@ export default function OnboardingScreen() {
     if (!formData.carType || !formData.carMake) return [];
     // Filter models that match type and make
     const models = new Set<string>();
-    CAR_DATABASE.filter(car => car.type === formData.carType && car.make === formData.carMake)
-      .forEach(car => models.add(car.model));
+    CAR_DATABASE.filter((car) => car.type === formData.carType && car.make === formData.carMake).forEach((car) =>
+      models.add(car.model),
+    );
     return Array.from(models).sort();
   };
 
@@ -150,48 +153,46 @@ export default function OnboardingScreen() {
     if (!formData.carType || !formData.carMake || !formData.carModel) return [];
     // Filter years that match type, make, and model
     const years = new Set<number>();
-    CAR_DATABASE.filter(car => 
-      car.type === formData.carType && 
-      car.make === formData.carMake && 
-      car.model === formData.carModel
-    ).forEach(car => years.add(car.year));
+    CAR_DATABASE.filter(
+      (car) => car.type === formData.carType && car.make === formData.carMake && car.model === formData.carModel,
+    ).forEach((car) => years.add(car.year));
     return Array.from(years).sort((a, b) => b - a); // Descending order
   };
 
   // Handle car selection
   const handleCarSelection = (value: string) => {
     if (carPickerType === "type") {
-      setFormData(prev => ({ 
-        ...prev, 
+      setFormData((prev) => ({
+        ...prev,
         carType: value,
         carMake: "", // Reset dependent fields
         carModel: "",
         carYear: "",
-        fuelType: ""
+        fuelType: "",
       }));
     } else if (carPickerType === "make") {
-      setFormData(prev => ({ 
-        ...prev, 
+      setFormData((prev) => ({
+        ...prev,
         carMake: value,
         carModel: "", // Reset dependent fields
         carYear: "",
-        fuelType: ""
+        fuelType: "",
       }));
     } else if (carPickerType === "model") {
-      setFormData(prev => ({ 
-        ...prev, 
+      setFormData((prev) => ({
+        ...prev,
         carModel: value,
         carYear: "", // Reset dependent field
-        fuelType: ""
+        fuelType: "",
       }));
     } else if (carPickerType === "year") {
       const selectedYear = Number(value);
-      setFormData(prev => ({ ...prev, carYear: value }));
-      
+      setFormData((prev) => ({ ...prev, carYear: value }));
+
       // Auto-set fuel type based on selection
       const carDetails = getCarDetails(formData.carMake, formData.carModel, selectedYear);
       if (carDetails) {
-        setFormData(prev => ({ ...prev, fuelType: carDetails.fuelType }));
+        setFormData((prev) => ({ ...prev, fuelType: carDetails.fuelType }));
       }
     }
     setShowCarPicker(false);
@@ -219,13 +220,13 @@ export default function OnboardingScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-    
+
     setTimeout(callback, 150);
   };
 
   const handleNext = () => {
     const currentField = getCurrentField();
-    
+
     // Validation
     if (!currentField.value && currentField.required) {
       setError(currentField.errorMessage || "This field is required");
@@ -273,8 +274,10 @@ export default function OnboardingScreen() {
       if (isSupabaseConfigured() && supabase && user?.id) {
         // Verify Supabase session (but don't fail if it's not available)
         try {
-          const { data: { user: supabaseUser } } = await supabase.auth.getUser();
-          
+          const {
+            data: { user: supabaseUser },
+          } = await supabase.auth.getUser();
+
           if (supabaseUser) {
             // Save to Supabase
             await completeOnboardingSupabase(supabaseUser.id, {
@@ -284,6 +287,8 @@ export default function OnboardingScreen() {
               carMake: formData.carMake,
               carModel: formData.carModel,
               carYear: Number(formData.carYear),
+              carType: formData.carType,
+              fuelType: formData.fuelType,
               licensePlate: formData.licensePlate.toUpperCase(),
               city: formData.city,
               country: formData.country,
@@ -293,11 +298,11 @@ export default function OnboardingScreen() {
             await initializeUserScore();
           } else {
             // No Supabase session, but we have local user - continue anyway
-            console.warn('No Supabase session found, using local auth only');
+            console.warn("No Supabase session found, using local auth only");
           }
         } catch (supabaseError) {
           // Supabase operations failed, but continue with local state
-          console.warn('Supabase operations failed, continuing with local state:', supabaseError);
+          console.warn("Supabase operations failed, continuing with local state:", supabaseError);
         }
       }
 
@@ -425,21 +430,15 @@ export default function OnboardingScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
-      >
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         {/* Progress Bar */}
         <View style={{ paddingHorizontal: Spacing.xl, paddingTop: Spacing.lg }}>
           <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.lg }}>
             {/* Back Button - Always show */}
-            <Pressable 
-              onPress={step > 0 ? handleBack : handleBackToLogin} 
-              style={{ marginRight: Spacing.md }}
-            >
+            <Pressable onPress={step > 0 ? handleBack : handleBackToLogin} style={{ marginRight: Spacing.md }}>
               <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
             </Pressable>
-            
+
             <View style={{ flex: 1, height: 4, backgroundColor: Colors.divider, borderRadius: 2 }}>
               <View
                 style={{
@@ -521,8 +520,7 @@ export default function OnboardingScreen() {
                     style={{
                       paddingVertical: Spacing.xl,
                       paddingHorizontal: Spacing.lg,
-                      backgroundColor:
-                        formData.gender === option ? Colors.primary + "20" : Colors.surface,
+                      backgroundColor: formData.gender === option ? Colors.primary + "20" : Colors.surface,
                       borderRadius: BorderRadius.medium,
                       borderWidth: 2,
                       borderColor: formData.gender === option ? Colors.primary : Colors.divider,
@@ -624,9 +622,7 @@ export default function OnboardingScreen() {
                           borderBottomColor: Colors.divider,
                         }}
                       >
-                        <Text style={{ fontSize: 24, marginRight: Spacing.md }}>
-                          {country.flag}
-                        </Text>
+                        <Text style={{ fontSize: 24, marginRight: Spacing.md }}>{country.flag}</Text>
                         <Text
                           style={{
                             fontSize: Typography.body.fontSize,

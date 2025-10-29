@@ -8,6 +8,8 @@ interface User {
   email: string;
   name: string;
   authProvider: "email" | "google";
+  car_type?: string;
+  fuel_type?: string;
 }
 
 interface OnboardingData {
@@ -134,7 +136,7 @@ export const useDriveStore = create<DriveStoreState>()(
 
       loadTripsFromSupabase: async () => {
         try {
-          console.log('📥 Loading trips from Supabase...');
+          console.log("📥 Loading trips from Supabase...");
           const { getUserTrips } = await import("../features/trips/services/trips.service");
           const { data: trips, error } = await getUserTrips();
 
@@ -144,13 +146,13 @@ export const useDriveStore = create<DriveStoreState>()(
           }
 
           console.log(`📦 Received ${trips?.length || 0} trips from database`);
-          
+
           if (trips && trips.length > 0) {
-            console.log('📋 First trip sample:', JSON.stringify(trips[0], null, 2));
+            console.log("📋 First trip sample:", JSON.stringify(trips[0], null, 2));
             set({ trips: trips.slice(0, 50) }); // Keep last 50 trips
             console.log(`✅ Loaded ${trips.length} trips from Supabase into store`);
           } else {
-            console.log('📭 No trips found in database');
+            console.log("📭 No trips found in database");
             set({ trips: [] });
           }
         } catch (error) {

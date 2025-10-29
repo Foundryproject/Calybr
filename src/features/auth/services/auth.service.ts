@@ -30,6 +30,8 @@ export interface OnboardingData {
   carMake: string;
   carModel: string;
   carYear: number;
+  carType?: string;
+  fuelType?: string;
   licensePlate: string;
   city?: string;
   country?: string;
@@ -251,7 +253,10 @@ export const updateUserProfile = async (
     if (updates.city !== undefined) profileUpdates.city = updates.city;
     if (updates.country !== undefined) profileUpdates.country = updates.country;
 
-    const { error } = await client.from("profiles").update(profileUpdates as any).eq("id", user.id);
+    const { error } = await client
+      .from("profiles")
+      .update(profileUpdates as any)
+      .eq("id", user.id);
 
     if (error) throw error;
   } catch (error) {
@@ -279,21 +284,21 @@ export const isOnboardingCompleted = async (): Promise<boolean> => {
 export const signInWithGoogle = async () => {
   try {
     const client = getSupabase();
-    
+
     // Create redirect URI for OAuth callback
     // For Expo Go, this will create exp://... URL
     // For production builds, this will create calybr://... URL
     const redirectTo = makeRedirectUri({
-      path: 'auth/callback',
+      path: "auth/callback",
       // Don't specify scheme - let Expo choose based on environment
       // In Expo Go: exp://...
       // In standalone app: calybr://...
     });
 
-    console.log('Google OAuth redirect URI:', redirectTo);
+    console.log("Google OAuth redirect URI:", redirectTo);
 
     const { data, error } = await client.auth.signInWithOAuth({
-      provider: 'google',
+      provider: "google",
       options: {
         redirectTo,
         skipBrowserRedirect: true, // We handle the redirect manually

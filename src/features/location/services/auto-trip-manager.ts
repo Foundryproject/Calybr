@@ -13,6 +13,7 @@ import { tripDatabase } from "../../trips/services/trip-database.service";
 import { useDriveStore } from "../../../state/driveStore";
 import { getShortLocationName } from "../../../utils/geocoding";
 import { calculateDriverScore, calculateTripScore } from "../../../services/driver-score-calculator.service";
+import { calculateTripCost, type FuelType } from "../../../services/fuel-cost-calculator.service";
 
 class AutoTripManager {
   private unsubscribers: (() => void)[] = [];
@@ -165,6 +166,15 @@ class AutoTripManager {
           console.warn("Failed to geocode trip locations:", error);
         }
 
+        // Get user's vehicle info for cost calculation
+        const user = useDriveStore.getState().user;
+        const vehicleType = user?.car_type || "Sedan";
+        const fuelType = (user?.fuel_type as FuelType) || "Gasoline";
+        const distanceMiles = savedTrip.distance_km * 0.621371; // Convert km to miles
+
+        // Calculate trip cost based on actual vehicle specs
+        const costBreakdown = calculateTripCost(distanceMiles, vehicleType, fuelType);
+
         // Create trip object for scoring
         const tripForScoring = {
           id: savedTrip.id,
@@ -172,9 +182,9 @@ class AutoTripManager {
           startTime: new Date(savedTrip.start_time).toLocaleTimeString(),
           endTime: new Date(savedTrip.end_time).toLocaleTimeString(),
           duration: Math.round(savedTrip.duration_s / 60),
-          distance: savedTrip.distance_km,
+          distance: distanceMiles,
           score: 0, // Will be calculated
-          estimatedCost: savedTrip.distance_km * 0.5,
+          estimatedCost: costBreakdown.totalCost,
           startAddress,
           endAddress,
           route: savedTrip.route,
@@ -193,14 +203,16 @@ class AutoTripManager {
         useDriveStore.getState().addTrip(tripForScoring);
 
         // Update overall driver score
-        const trendValue = scoreData.trend === 'improving' ? 'up' : scoreData.trend === 'declining' ? 'down' : 'stable';
+        const trendValue = scoreData.trend === "improving" ? "up" : scoreData.trend === "declining" ? "down" : "stable";
         useDriveStore.getState().setDriverScore({
           overall: scoreData.overallScore,
           delta: 0, // TODO: Calculate vs last week
           metrics: {
             speeding: {
               name: "Speed Compliance",
-              score: scoreData.breakdown.speedViolations ? Math.max(0, 100 - scoreData.breakdown.speedViolations * 5) : 100,
+              score: scoreData.breakdown.speedViolations
+                ? Math.max(0, 100 - scoreData.breakdown.speedViolations * 5)
+                : 100,
               trend: trendValue,
               percentile: 50,
               advice: "Stay within speed limits",
