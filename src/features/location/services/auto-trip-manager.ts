@@ -143,6 +143,28 @@ class AutoTripManager {
         const currentTrips = useDriveStore.getState().trips;
         const currentDriverScore = useDriveStore.getState().driverScore?.overall || 500;
 
+        // Get start and end locations from route
+        const startLocation = savedTrip.route[0];
+        const endLocation = savedTrip.route[savedTrip.route.length - 1];
+
+        // Convert coordinates to location names
+        let startAddress = "Unknown location";
+        let endAddress = "Unknown location";
+
+        try {
+          if (startLocation) {
+            const startName = await getShortLocationName(startLocation.latitude, startLocation.longitude);
+            startAddress = startName || `${startLocation.latitude.toFixed(4)}, ${startLocation.longitude.toFixed(4)}`;
+          }
+
+          if (endLocation) {
+            const endName = await getShortLocationName(endLocation.latitude, endLocation.longitude);
+            endAddress = endName || `${endLocation.latitude.toFixed(4)}, ${endLocation.longitude.toFixed(4)}`;
+          }
+        } catch (error) {
+          console.warn("Failed to geocode trip locations:", error);
+        }
+
         // Create trip object for scoring
         const tripForScoring = {
           id: savedTrip.id,
@@ -153,8 +175,8 @@ class AutoTripManager {
           distance: savedTrip.distance_km,
           score: 0, // Will be calculated
           estimatedCost: savedTrip.distance_km * 0.5,
-          startAddress: "Auto-detected trip",
-          endAddress: "Auto-detected trip",
+          startAddress,
+          endAddress,
           route: savedTrip.route,
           events: [],
           speedViolations: savedTrip.speed_violations || [],
