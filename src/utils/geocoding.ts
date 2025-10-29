@@ -84,7 +84,7 @@ export async function reverseGeocode(
 }
 
 /**
- * Get a short, readable location name (City, State or just City)
+ * Get a short, readable location name (Street address or City, State)
  */
 export async function getShortLocationName(
   latitude: number,
@@ -96,16 +96,29 @@ export async function getShortLocationName(
     return `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
   }
 
-  // Return "City, State" or just "City" or formatted address
+  // Priority 1: Street address (e.g., "123 Main St")
+  if (address.streetAddress && address.streetAddress.trim().length > 0) {
+    // Return street address with city if available
+    if (address.city) {
+      return `${address.streetAddress}, ${address.city}`;
+    }
+    return address.streetAddress;
+  }
+
+  // Priority 2: City, State
   if (address.city && address.state) {
     return `${address.city}, ${address.state}`;
   } else if (address.city) {
     return address.city;
-  } else {
-    // Return just the first part of the formatted address
-    const parts = address.formattedAddress.split(",");
-    return parts[0] || address.formattedAddress;
   }
+
+  // Priority 3: First two parts of formatted address (most specific)
+  const parts = address.formattedAddress.split(",").map(p => p.trim());
+  if (parts.length >= 2) {
+    return `${parts[0]}, ${parts[1]}`;
+  }
+  
+  return parts[0] || address.formattedAddress;
 }
 
 /**
