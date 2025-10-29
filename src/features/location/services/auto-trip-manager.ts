@@ -193,31 +193,51 @@ class AutoTripManager {
         useDriveStore.getState().addTrip(tripForScoring);
 
         // Update overall driver score
+        const trendValue = scoreData.trend === 'improving' ? 'up' : scoreData.trend === 'declining' ? 'down' : 'stable';
         useDriveStore.getState().setDriverScore({
           overall: scoreData.overallScore,
-          metrics: [
-            {
-              name: "Hard Braking",
-              score: Math.round(scoreData.breakdown.hardBraking * 4), // 0-100 scale
-              trend: scoreData.trend === 'improving' ? 'up' : scoreData.trend === 'declining' ? 'down' : 'stable',
-              percentile: 50,
-              advice: "Brake gradually to improve safety",
-            },
-            {
-              name: "Acceleration",
-              score: Math.round(scoreData.breakdown.rapidAcceleration * 6.67), // 0-100 scale
-              trend: scoreData.trend === 'improving' ? 'up' : scoreData.trend === 'declining' ? 'down' : 'stable',
-              percentile: 50,
-              advice: "Accelerate smoothly for better efficiency",
-            },
-            {
-              name: "Speed Compliance",
+          delta: 0, // TODO: Calculate vs last week
+          metrics: {
+            speeding: {
               score: scoreData.breakdown.speedViolations ? Math.max(0, 100 - scoreData.breakdown.speedViolations * 5) : 100,
-              trend: 'stable',
+              trend: trendValue,
               percentile: 50,
               advice: "Stay within speed limits",
             },
-          ],
+            hardBrakes: {
+              score: Math.round(scoreData.breakdown.hardBraking * 4), // 0-100 scale
+              trend: trendValue,
+              percentile: 50,
+              advice: "Brake gradually to improve safety",
+            },
+            phoneDistraction: {
+              score: Math.round(scoreData.breakdown.phoneDistraction * 10), // 0-100 scale
+              trend: trendValue,
+              percentile: 50,
+              advice: "Keep phone use to a minimum while driving",
+            },
+            cornering: {
+              score: Math.round(scoreData.breakdown.rapidAcceleration * 6.67), // 0-100 scale (using rapid accel as proxy)
+              trend: trendValue,
+              percentile: 50,
+              advice: "Accelerate smoothly for better efficiency",
+            },
+            nightDriving: {
+              score: Math.round(scoreData.breakdown.nightDriving * 5), // 0-100 scale
+              trend: trendValue,
+              percentile: 50,
+              advice: "Extra caution during night driving",
+            },
+            highway: {
+              score: Math.round(scoreData.breakdown.mileage * 5), // 0-100 scale
+              trend: trendValue,
+              percentile: 50,
+              advice: "Maintain safe highway driving habits",
+            },
+          },
+          strengths: [], // TODO: Analyze strengths
+          improvements: [], // TODO: Analyze areas for improvement
+          quickTip: "Keep up the safe driving!",
           lastUpdated: new Date(),
         });
 

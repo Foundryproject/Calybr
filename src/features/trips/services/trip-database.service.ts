@@ -19,6 +19,8 @@ export interface SavedTrip {
   route: any; // JSONB
   score?: number;
   created_at?: string;
+  speed_violations?: any; // JSONB - array of speed violation objects
+  events?: any; // JSONB - array of driving events (hard brakes, phone use, etc.)
 }
 
 class TripDatabaseService {
