@@ -11,6 +11,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.calybr.app",
+      "usesAppleSignIn": false,
+      "usesNonExemptEncryption": false,
       "config": {
         "googleMapsApiKey": "AIzaSyB1DjZ-zMEe-MvDk-82Um6dghYuAGoOoyI"
       },

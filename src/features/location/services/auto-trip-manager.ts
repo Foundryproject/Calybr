@@ -12,6 +12,7 @@ import { autoTripDetection, DetectedTrip } from "./auto-trip-detection.service";
 import { tripDatabase } from "../../trips/services/trip-database.service";
 import { useDriveStore } from "../../../state/driveStore";
 import { getShortLocationName } from "../../../utils/geocoding";
+import { calculateDriverScore, calculateTripScore } from "../../../services/driver-score-calculator.service";
 
 class AutoTripManager {
   private unsubscribers: (() => void)[] = [];
@@ -138,23 +139,72 @@ class AutoTripManager {
       const savedTrip = await tripDatabase.saveTrip(trip, userId);
 
       if (savedTrip) {
-        // Add to local trips list
-        useDriveStore.getState().addTrip({
+        // Get current trips and driver score
+        const currentTrips = useDriveStore.getState().trips;
+        const currentDriverScore = useDriveStore.getState().driverScore?.overall || 500;
+
+        // Create trip object for scoring
+        const tripForScoring = {
           id: savedTrip.id,
           date: new Date(savedTrip.start_time),
           startTime: new Date(savedTrip.start_time).toLocaleTimeString(),
           endTime: new Date(savedTrip.end_time).toLocaleTimeString(),
-          duration: Math.round(savedTrip.duration_s / 60), // seconds to minutes
+          duration: Math.round(savedTrip.duration_s / 60),
           distance: savedTrip.distance_km,
-          score: savedTrip.score || 0,
-          estimatedCost: savedTrip.distance_km * 0.5, // Simplified cost
+          score: 0, // Will be calculated
+          estimatedCost: savedTrip.distance_km * 0.5,
           startAddress: "Auto-detected trip",
           endAddress: "Auto-detected trip",
           route: savedTrip.route,
-          events: [], // Empty events array for auto-detected trips
+          events: [],
+          speedViolations: savedTrip.speed_violations || [],
+        };
+
+        // Calculate comprehensive score for this trip
+        const allTripsForScoring = [...currentTrips, tripForScoring];
+        const scoreData = calculateDriverScore(allTripsForScoring, currentDriverScore);
+
+        // Update trip with calculated score
+        tripForScoring.score = scoreData.tripScore;
+
+        // Add to local trips list
+        useDriveStore.getState().addTrip(tripForScoring);
+
+        // Update overall driver score
+        useDriveStore.getState().setDriverScore({
+          overall: scoreData.overallScore,
+          metrics: [
+            {
+              name: "Hard Braking",
+              score: Math.round(scoreData.breakdown.hardBraking * 4), // 0-100 scale
+              trend: scoreData.trend === 'improving' ? 'up' : scoreData.trend === 'declining' ? 'down' : 'stable',
+              percentile: 50,
+              advice: "Brake gradually to improve safety",
+            },
+            {
+              name: "Acceleration",
+              score: Math.round(scoreData.breakdown.rapidAcceleration * 6.67), // 0-100 scale
+              trend: scoreData.trend === 'improving' ? 'up' : scoreData.trend === 'declining' ? 'down' : 'stable',
+              percentile: 50,
+              advice: "Accelerate smoothly for better efficiency",
+            },
+            {
+              name: "Speed Compliance",
+              score: scoreData.breakdown.speedViolations ? Math.max(0, 100 - scoreData.breakdown.speedViolations * 5) : 100,
+              trend: 'stable',
+              percentile: 50,
+              advice: "Stay within speed limits",
+            },
+          ],
+          lastUpdated: new Date(),
         });
 
-        console.log("✅ Trip saved successfully:", savedTrip.id);
+        console.log("✅ Trip saved successfully:", {
+          id: savedTrip.id,
+          tripScore: scoreData.tripScore,
+          newOverallScore: scoreData.overallScore,
+          trend: scoreData.trend,
+        });
 
         // Silent save - no notification needed
       } else {
