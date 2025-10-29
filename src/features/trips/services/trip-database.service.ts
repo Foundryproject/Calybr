@@ -6,6 +6,7 @@
 
 import { supabase, isSupabaseConfigured } from "../../../lib/supabase";
 import { DetectedTrip } from "../../location/services/auto-trip-detection.service";
+import { getShortLocationName } from "../../../utils/geocoding";
 
 export interface SavedTrip {
   id: string;
@@ -45,6 +46,28 @@ class TripDatabaseService {
       const startCoords = trip.route && trip.route.length > 0 ? trip.route[0] : null;
       const endCoords = trip.route && trip.route.length > 0 ? trip.route[trip.route.length - 1] : null;
 
+      // Geocode start and end addresses
+      let startAddress = "Unknown location";
+      let endAddress = "Unknown location";
+
+      if (startCoords) {
+        try {
+          startAddress = await getShortLocationName(startCoords.latitude, startCoords.longitude);
+          console.log(`📍 Start address: ${startAddress}`);
+        } catch (error) {
+          console.warn("Failed to geocode start address:", error);
+        }
+      }
+
+      if (endCoords) {
+        try {
+          endAddress = await getShortLocationName(endCoords.latitude, endCoords.longitude);
+          console.log(`📍 End address: ${endAddress}`);
+        } catch (error) {
+          console.warn("Failed to geocode end address:", error);
+        }
+      }
+
       const tripData = {
         user_id: userId,
         device_id: deviceId,
@@ -56,8 +79,8 @@ class TripDatabaseService {
         start_lon: startCoords?.longitude,
         end_lat: endCoords?.latitude,
         end_lon: endCoords?.longitude,
-        start_address: "Auto-detected trip",
-        end_address: "Auto-detected trip",
+        start_address: startAddress,
+        end_address: endAddress,
         route_json: trip.route.map((p) => ({
           latitude: p.latitude,
           longitude: p.longitude,
