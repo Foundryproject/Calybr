@@ -11,6 +11,7 @@
 import * as Location from "expo-location";
 import { backgroundLocationService } from "./background-location.service";
 import { driveTrackingService, DriveMetrics } from "./drive-tracking.service";
+import { SpeedMonitor, SpeedViolation } from "../../../services/speed-monitoring.service";
 
 // Trip detection thresholds
 const THRESHOLDS = {
@@ -46,6 +47,7 @@ export interface DetectedTrip {
     speed: number;
   }[];
   events: any[];
+  speedViolations?: SpeedViolation[];
 }
 
 type TripState = "idle" | "detecting" | "driving" | "stopped";
@@ -71,6 +73,9 @@ class AutoTripDetectionService {
   // Current trip data
   private currentTrip: DetectedTrip | null = null;
   private backgroundUnsubscribe: (() => void) | null = null;
+
+  // Speed monitoring
+  private speedMonitor: SpeedMonitor = new SpeedMonitor();
 
   // Callbacks
   private onTripStartCallbacks: ((trip: DetectedTrip) => void)[] = [];
@@ -150,7 +155,7 @@ class AutoTripDetectionService {
   /**
    * Process location update and detect trip state changes
    */
-  private processLocation(location: Location.LocationObject): void {
+  private async processLocation(location: Location.LocationObject): Promise<void> {
     const speed = (location.coords.speed || 0) * 3.6; // m/s to km/h
     const now = Date.now();
 
@@ -167,7 +172,7 @@ class AutoTripDetectionService {
         this.handleDetectingState(speed, location, now);
         break;
       case "driving":
-        this.handleDrivingState(speed, location, now);
+        await this.handleDrivingState(speed, location, now);
         break;
       case "stopped":
         this.handleStoppedState(speed, location, now);
@@ -209,7 +214,7 @@ class AutoTripDetectionService {
   /**
    * Driving state: Trip is active, tracking location
    */
-  private handleDrivingState(speed: number, location: Location.LocationObject, now: number): void {
+  private async handleDrivingState(speed: number, location: Location.LocationObject, now: number): Promise<void> {
     if (!this.currentTrip) return;
 
     // Update trip data
@@ -238,6 +243,29 @@ class AutoTripDetectionService {
 
     if (this.currentTrip.duration > 0) {
       this.currentTrip.averageSpeed = this.currentTrip.distance / 1000 / (this.currentTrip.duration / 3600);
+    }
+
+    // Monitor speed and check for violations
+    try {
+      const speedMph = speed * 0.621371; // Convert km/h to mph
+      const speedResult = await this.speedMonitor.update(
+        location.coords.latitude,
+        location.coords.longitude,
+        speedMph
+      );
+
+      // If a violation occurred, add it to the trip
+      if (speedResult.violation) {
+        if (!this.currentTrip.speedViolations) {
+          this.currentTrip.speedViolations = [];
+        }
+        this.currentTrip.speedViolations.push(speedResult.violation);
+        
+        console.log(`⚠️ Speed violation: ${speedResult.excessSpeed.toFixed(1)} mph over ${speedResult.speedLimit} mph limit (${speedResult.violation.severity})`);
+      }
+    } catch (error) {
+      // Don't fail the trip if speed monitoring fails
+      console.warn("Speed monitoring error:", error);
     }
 
     // Notify listeners of update
@@ -296,10 +324,14 @@ class AutoTripDetectionService {
         },
       ],
       events: [],
+      speedViolations: [],
     };
 
     this.state = "driving";
     this.stoppedSince = null;
+
+    // Reset speed monitor for new trip
+    this.speedMonitor.reset();
 
     console.log("🚗 Trip started!", {
       id: this.currentTrip.id,
