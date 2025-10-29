@@ -55,9 +55,15 @@ export default function ScoreScreen() {
   // Default score for new users
   const defaultScore: DriverScore = {
     overall: 500,
-    safetyScore: 500,
-    ecoScore: 500,
     delta: 0,
+    metrics: {
+      speeding: { name: "Speed Compliance", score: 100, trend: "stable", percentile: 50, advice: "Stay within speed limits", icon: "🚦" },
+      hardBrakes: { name: "Smooth Braking", score: 100, trend: "stable", percentile: 50, advice: "Brake gradually", icon: "🛑" },
+      phoneDistraction: { name: "Focus", score: 100, trend: "stable", percentile: 50, advice: "Keep phone down", icon: "📱" },
+      cornering: { name: "Smooth Turns", score: 100, trend: "stable", percentile: 50, advice: "Smooth cornering", icon: "⚡" },
+      nightDriving: { name: "Night Safety", score: 100, trend: "stable", percentile: 50, advice: "Extra caution at night", icon: "🌙" },
+      highway: { name: "Highway Safety", score: 100, trend: "stable", percentile: 50, advice: "Maintain safe distance", icon: "🛣️" },
+    },
     strengths: ["New Driver - Build Your Score!"],
     improvements: ["Complete your first trip to start tracking"],
     quickTip: "Welcome to Calybr! Start driving to build your personalized score. Your score starts at 500 and will improve as you drive safely.",

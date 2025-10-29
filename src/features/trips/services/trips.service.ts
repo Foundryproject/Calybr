@@ -213,7 +213,7 @@ export async function createTrip(tripData: CreateTripData): Promise<{ data: Trip
           severity: event.severity,
           lat: event.location?.latitude,
           lon: event.location?.longitude,
-        }))
+        })) as any
       );
     }
 
