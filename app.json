@@ -12,6 +12,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "app.calybr.calybr",
       "buildNumber": "1.0.0",
+      "appleTeamId": "6327CTCJ38",
       "usesAppleSignIn": false,
       "usesNonExemptEncryption": false,
       "config": {
@@ -21,7 +22,9 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Calybr tracks your drives automatically to calculate your DriveScore and help you become a safer driver.",
         "NSLocationWhenInUseUsageDescription": "Calybr needs your location to track your trips and provide driving insights.",
         "NSMotionUsageDescription": "Calybr uses motion data to automatically detect when you start and stop driving.",
-        "UIBackgroundModes": ["location"]
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
