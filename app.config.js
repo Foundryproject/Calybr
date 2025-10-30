@@ -18,6 +18,7 @@ export default () => ({
       bundleIdentifier: "com.calybr.app",
       config: {
         googleMapsApiKey: process.env.MAPS_API_KEY || "AIzaSyB1DjZ-zMEe-MvDk-82Um6dghYuAGoOoyI",
+        usesNonExemptEncryption: false,
       },
       infoPlist: {
         NSLocationAlwaysAndWhenInUseUsageDescription:
@@ -53,7 +54,15 @@ export default () => ({
     },
     plugins: [
       "expo-asset",
-      "expo-build-properties",
+      [
+        "expo-build-properties",
+        {
+          ios: {
+            deploymentTarget: "15.1",
+            useFrameworks: "static",
+          },
+        },
+      ],
       "expo-font",
       "expo-mail-composer",
       "expo-secure-store",

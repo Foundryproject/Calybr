@@ -133,5 +133,8 @@
     "prettier": "^3.6.2",
     "typescript": "~5.9.2"
   },
+  "overrides": {
+    "RCT-Folly": "2024.01.01.00"
+  },
   "private": true
 }
